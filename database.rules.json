@@ -4,8 +4,8 @@
     ".write": false,
     "rooms": {
       "$id": {
-        ".read": "auth != null",
-        ".write": "auth != null && (!data.exists() || data.child('expiresAt').val() < now)",
+        ".read": "auth != null && $id.matches(/^[0-9]{8}_[0-9a-f]{16}$/)",
+        ".write": "auth != null && $id.matches(/^[0-9]{8}_[0-9a-f]{16}$/) && (!data.exists() || data.child('expiresAt').val() < now)",
         ".validate": "newData.hasChildren(['expiresAt']) && newData.child('expiresAt').isNumber()",
         "rosterAt": { ".write": "auth != null", ".validate": "newData.isNumber()" },
         "roster": {

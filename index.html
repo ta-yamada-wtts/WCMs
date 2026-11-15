@@ -655,7 +655,7 @@
       }
       // 今日のボードの名前（日付＋サーバーだけが知る合言葉）。日付だけでは当てられないようにしてある
       if (typeof json.key === 'string' && /^[0-9a-f-]{32,100}$/.test(json.key)) save('roomSecret', json.key);   // 一度受け取れば、以後は出欠アプリがなくても今日のボードの名前を計算できる
-      if (typeof json.room === 'string' && /^d{8}_[0-9a-f]{16,64}$/.test(json.room)) save('roomKey', { day: boardDay().id, key: json.room });
+      if (typeof json.room === 'string' && /^\d{8}_[0-9a-f]{16,64}$/.test(json.room)) save('roomKey', { day: boardDay().id, key: json.room });
       if (!json.ok && json.error === 'noAttendees') { const err = new Error('noAttendees'); err.code = 'noAttendees'; throw err; }
       if (!json.ok) throw new Error({
         noAttendees: '今日の出席者がまだいません。出欠アプリで出席（〇）を付けるか、練習の記録が済んでから、もう一度開いてください。',
