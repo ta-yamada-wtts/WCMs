@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>WCMs</title>
+  <meta name="theme-color" content="#0a0a0b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="WCMs">
+  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <style>
+    /* 「サークル出欠」の見た目と操作感に合わせる：スレートの暗い配色、角丸12/16、カード見出しは小さく控えめ、
+       自分のカード＋1タップで切り替える大きなボタン、状態は薄い色のピル、操作したらトーストで知らせる */
+    :root {
+      --bg: #0a0a0b;
+      --surface: #141416;
+      --surface-2: #1f1f23;
+      --border: #2a2a2e;
+      --border-mid: #3a3a40;
+      --text: #f2f2f3;
+      --text-sub: #a1a1a9;
+      --text-muted: #8e8e96;
+      --green: #4ade80;
+      --green-soft: rgba(74,222,128,0.12);
+      --blue: #60a5fa;
+      --blue-soft: rgba(96,165,250,0.12);
+      --amber: #fbbf24;
+      --amber-soft: rgba(251,191,36,0.12);
+      --red: #f87171;
+      --red-soft: rgba(248,113,113,0.1);
+      --radius-sm: 8px;
+      --radius: 12px;
+      --radius-lg: 16px;
+      --gap: 16px;      /* 画面・カードの余白 */
+      --gap-s: 12px;    /* 塊の中の行間 */
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; height: 100dvh; -webkit-text-size-adjust: 100%; overscroll-behavior-y: none; }   /* 下へ引っ張っても、ページを読み込み直さない（内容は自動で更新される） */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased;
+      display: flex; flex-direction: column;
+    }
+    .ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -3px; }
+    header {
+      padding: calc(12px + env(safe-area-inset-top)) var(--gap) 12px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 700; letter-spacing: .02em; display: flex; justify-content: space-between; align-items: center;
+    }
+    header small { font-weight: 400; font-size: 0.78rem; color: var(--text-muted); letter-spacing: 0; margin-left: 8px; }
+    #modeBadge.warn { color: var(--red); border-color: var(--red); }
+    #modeBadge:not(:empty) { border: 1px solid var(--border-mid); border-radius: 6px; padding: 0 6px; margin: 0; }
+    main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .screen { display: none; flex: 1; min-height: 0; overflow: auto; overscroll-behavior-y: contain; padding: var(--gap) var(--gap) 80px; gap: var(--gap); }
+    .screen.active { display: flex; flex-direction: column; }
+    .screen > * { width: 100%; max-width: 560px; margin-left: auto; margin-right: auto; flex: none; }
+    .pane { display: flex; flex-direction: column; gap: var(--gap); }
+    /* 一次会：自分のカードは画面の下に固定して、お店の欄が伸び縮みしても動かないようにする */
+    #pane1 { flex: 1 0 auto; }
+    #pane1 .hero { margin-top: auto; position: sticky; bottom: 0; z-index: 5; box-shadow: 0 0 0 var(--gap) var(--bg); }
+    .bnav { display: none; flex: none; background: var(--surface); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); }
+    body.in-room .bnav { display: flex; }
+    body.in-room #room { padding: 10px var(--gap) 12px; gap: 12px; }
+    /* ボードの中では、上の帯（アプリ名）を畳んで場所を空ける。「オフライン」の印だけ残す */
+    body.in-room header { padding: env(safe-area-inset-top) var(--gap) 0; border-bottom: 0; justify-content: flex-end; }
+    body.in-room header > :not(#modeBadge) { display: none; }
+    body.in-room header #modeBadge:not(:empty) { margin-top: 6px; }
+    #room .pane { gap: 12px; }
+    #room .card { padding: 14px; }
+    #openCard { background: none; border: none; padding: 8px 0; }
+    #room .card > * + *, #room #withBlock > * + * { margin-top: 10px; }
+    body.in-room .toast { bottom: auto; top: calc(12px + env(safe-area-inset-top)); transform: translateX(-50%) translateY(-300px); }
+    body.in-room .toast.show { transform: translateX(-50%) translateY(0); }
+    .bnav button { flex: 1; width: auto; min-height: 58px; padding: 8px 4px 10px; border: 0; border-radius: 0; background: none; color: var(--text-muted); flex-direction: column; gap: 3px; font-size: 0.72rem; font-weight: 600; position: relative; }
+    .bnav button:active { background: var(--surface-2); }
+    .bnav button.on { color: var(--blue); }
+    .bnav button.on::before { content: ""; position: absolute; top: 0; left: 28%; right: 28%; height: 2px; border-radius: 0 0 2px 2px; background: var(--blue); }
+    .bnav .ic { width: 22px; height: 22px; }
+    .bnav .badge { margin-left: 5px; font-weight: 700; color: var(--text-sub); background: var(--surface-2); border-radius: 100px; padding: 0 6px; font-size: 0.68rem; }
+    .bnav .badge.ok { color: var(--green); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; }
+    .card > * + *, details > * + *, #withBlock > * + * { margin-top: var(--gap-s); }
+    .card-title { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .card-title .t { display: flex; align-items: center; gap: 8px; }
+    .card-title-count { font-size: 0.85rem; color: var(--blue); font-weight: 600; letter-spacing: 0; }
+    .card-title-count.ok { color: var(--green); font-weight: 700; }
+    .card h2 { font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .muted { color: var(--text-muted); font-size: 0.8rem; }
+    .hint { color: var(--text-muted); font-size: 0.8rem; }
+    .section-label { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+    label { display: block; font-size: 0.78rem; color: var(--text-muted); }
+    input {
+      width: 100%; font-size: 16px; padding: 11px 14px; border: 1px solid var(--border-mid);
+      border-radius: var(--radius); background: var(--bg); color: var(--text); font-family: inherit; outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+    input::placeholder { color: var(--text-muted); }
+    button {
+      font-family: inherit; font-size: 0.95rem; font-weight: 600; min-height: 48px; padding: 12px 16px; border: 1px solid transparent; border-radius: var(--radius);
+      background: var(--blue); color: #fff; cursor: pointer; width: 100%;
+      display: flex; align-items: center; justify-content: center; gap: 8px; line-height: 1.4; text-align: center;
+      transition: background .15s, transform .1s;
+    }
+    button:active { background: #2563eb; }
+    button.sub { background: var(--surface-2); color: var(--text); border-color: var(--border-mid); font-weight: 500; }
+    button.sub:active { background: #374151; }
+    button.dash { background: transparent; border: 1px dashed var(--border-mid); color: var(--text-sub); }
+    button.small { width: auto; font-size: 0.8rem; min-height: 36px; padding: 6px 12px; }
+    button.link { width: auto; min-height: 0; padding: 0; background: none; border: 0; color: var(--blue); font-size: 0.78rem; font-weight: 500; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .row { display: flex; gap: 8px; }
+    .row > * { flex: 1; }
+    .notice { background: var(--amber-soft); border: 1px solid rgba(245,158,11,0.3); color: var(--amber); border-radius: var(--radius); padding: 12px var(--gap); font-size: 0.8rem; }
+    .err { color: #fca5a5; font-size: 0.9rem; }
+    .err:empty { display: none; }
+
+    .top { display: flex; justify-content: space-between; align-items: center; padding: 0 4px; }
+    .date { font-size: 1.15rem; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; }
+    #remain { text-align: right; display: flex; align-items: center; gap: 6px; }
+    .top-r { display: flex; align-items: center; gap: 4px; }
+    button.icon { width: 40px; min-height: 40px; padding: 0; margin: -8px -8px -8px 0; background: none; border: 0; color: var(--text-muted); }
+    button.icon:active { background: var(--surface-2); }
+    #openMsg:not(:empty)::before { content: ""; display: inline-block; width: 16px; height: 16px; margin-right: 8px; vertical-align: -3px; border: 2px solid var(--surface-2); border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 自分のカード */
+    .hero { background: var(--surface); border: 1px solid var(--border); border-top: 2px solid var(--border-mid); border-radius: var(--radius-lg); padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+    .hero.shop { border-top-color: var(--blue); }
+    .hero.moving { border-top-color: var(--amber); }
+    .hero.arrived { border-top-color: var(--green); }
+    .hero > * + * { margin-top: 8px; }
+    .hero-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 28px; }
+    .hero-user { font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .hero-user span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #heroName { cursor: pointer; }
+    .hero-sub { font-size: 0.8rem; line-height: 1.3; color: var(--text-sub); text-align: right; min-width: 0; }
+    .hero-row { display: flex; justify-content: space-between; align-items: center; }
+    .pill { font-size: 0.78rem; font-weight: 600; padding: 3px 9px; border-radius: 9999px; border: 1px solid var(--border-mid); background: var(--surface-2); color: var(--text-muted); flex: none; }
+    .pill.shop { background: var(--blue-soft); color: var(--blue); border-color: rgba(59,130,246,0.3); }
+    .pill.moving { background: var(--amber-soft); color: var(--amber); border-color: rgba(245,158,11,0.3); }
+    .pill.arrived { background: var(--green-soft); color: var(--green); border-color: rgba(34,197,94,0.3); }
+    .quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .qbtn { flex-direction: column; gap: 3px; min-height: 60px; padding: 8px 4px; font-size: 0.85rem; font-weight: 700; background: var(--surface-2); color: var(--text); border-color: var(--border-mid); }
+    .qbtn:active { background: #374151; transform: scale(.97); }
+    .qbtn.off { opacity: .5; }
+    .qbtn.shop.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+    .qbtn.moving.on { background: var(--amber); border-color: var(--amber); color: #000; }
+    .qbtn.arrived.on { background: var(--green); border-color: var(--green); color: #fff; }
+
+    /* 一覧：1行ごとに角丸の枠。選んだ行は薄い青 */
+    .gens { gap: 6px; }
+    .sim { align-items: center; gap: 6px; }
+    .sim span { font-size: 0.8rem; color: var(--text-muted); }
+    .sim button { background: var(--blue-soft); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); border-radius: 999px; padding: 4px 12px; font-size: 0.9rem; font-weight: 600; width: auto; min-height: 0; margin: 0; }
+    .gens button { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 0.85rem; width: auto; min-height: 0; margin: 0; }
+    .gens button.on { background: var(--blue-soft); border-color: rgba(59,130,246,0.3); font-weight: 700; color: var(--blue); }
+    .shoplist { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+    .shoplist label { display: flex; align-items: center; gap: 12px; padding: 11px 14px; font-size: 0.95rem; color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: background .12s, border-color .12s; }
+    .shoplist label:active { background: var(--surface-2); }
+    .shoplist label.sel { background: var(--blue-soft); border-color: rgba(59,130,246,0.3); font-weight: 600; }
+    .shoplist input { width: 22px; height: 22px; padding: 0; margin: 0; flex: none; appearance: none; -webkit-appearance: none; position: relative; background: transparent; border: 1.5px solid var(--border-mid); box-shadow: none; }
+    .shoplist input[type=radio] { border-radius: 50%; }
+    .shoplist input[type=checkbox] { border-radius: var(--radius-sm); }
+    .shoplist input:checked { background: var(--blue); border-color: var(--blue); }
+    .shoplist input[type=radio]:checked::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: #fff; }
+    .shoplist input[type=checkbox]:checked::after { content: ""; position: absolute; left: 6px; top: 2px; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+    .shoplist .cnt { margin-left: auto; color: var(--text-muted); font-size: 0.75rem; font-weight: 400; white-space: nowrap; }
+    .shoplist label:has(.cnt.who) { flex-wrap: wrap; row-gap: 4px; }
+    .shoplist .cnt.who { flex: 1 1 0; min-width: 45%; margin: 0; white-space: normal; line-height: 1.2; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+    .shoplist .cnt.who:empty { display: none; }
+    .pchip { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 7px; font-size: 0.75rem; color: var(--text); font-weight: 400; }
+    .shoplist label.sel .pchip { background: var(--surface); }
+    .shoplist .cnt + .cnt { margin-left: 0; }
+    .shoplist .del { color: var(--text-muted); display: flex; padding: 0 2px; }
+    .shoplist .none-txt { padding: 12px; }
+    details > summary { cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 600; list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+    details > summary::after { content: ""; width: 7px; height: 7px; margin: 0 4px 3px auto; border-right: 2px solid var(--text-muted); border-bottom: 2px solid var(--text-muted); transform: rotate(45deg); transition: transform .15s; }
+    details[open] > summary::after { transform: rotate(-135deg); margin-bottom: -3px; }
+
+    .sug { border: 1px solid var(--border-mid); border-radius: var(--radius); overflow: hidden; background: var(--surface); box-shadow: 0 8px 20px rgba(0,0,0,.4); }
+    .sug .item { padding: 12px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .sug .item:active { background: var(--surface-2); }
+    .sug .nm { font-size: 0.95rem; font-weight: 600; }
+    .sug .sb { font-size: 0.75rem; color: var(--text-muted); }
+    .lnk { color: var(--text-muted); }
+    .lnk { display: inline-flex; vertical-align: middle; margin-left: 6px; }
+
+    .sec + .sec { margin-top: var(--gap); }
+    .sec h3 { font-size: 0.8rem; display: flex; justify-content: space-between; align-items: center; color: var(--text-sub); }
+    .sec h3 .t { display: flex; align-items: center; gap: 8px; }
+    .sec h3 .n { color: var(--text-muted); font-weight: 400; }
+    .sec .chips, .sec .none-txt { margin-top: 8px; }
+    .sec.arrived h3 .t { color: var(--green); }
+    .sec.moving h3 .t { color: var(--amber); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 10px; font-size: 0.9rem; }
+    .chip.me { background: var(--blue-soft); border-color: rgba(59,130,246,0.3); font-weight: 700; }
+    .none-txt { color: var(--text-muted); font-size: 0.8rem; }
+
+    .cands { display: flex; flex-direction: column; gap: 8px; }
+    .cand { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); }
+    .heart { width: 40px; height: 40px; min-height: 0; padding: 0; flex: none; background: transparent; color: var(--text-muted); border: 1px solid var(--border-mid); border-radius: 50%; }
+    .heart { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }   /* 長押しでメニューや選択が出ないように */
+    .heart:active { background: var(--surface-2); }
+    /* 下から上がってくる一覧（行きたい人） */
+    .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 9000; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    .sheet-bg.show { opacity: 1; pointer-events: auto; }
+    .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 9001; max-width: 560px; margin: 0 auto; max-height: 70vh; max-height: 70dvh; display: flex; flex-direction: column;
+      background: var(--surface); border: 1px solid var(--border); border-bottom: 0; border-radius: 20px 20px 0 0; padding: 8px var(--gap) calc(var(--gap) + env(safe-area-inset-bottom));
+      transform: translateY(105%); transition: transform .25s ease; box-shadow: 0 -8px 24px rgba(0,0,0,.5); }
+    .sheet.show { transform: translateY(0); }
+    .sheet-head { flex: none; padding: 4px 0 12px; text-align: center; touch-action: none; cursor: grab; }
+    .sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--border-mid); margin: 4px auto 12px; }
+    .sheet-title { font-size: 1rem; font-weight: 700; }
+    .sheet-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+    .sheet-list { flex: 1; min-height: 0; overflow: auto; overscroll-behavior-y: contain; display: flex; flex-direction: column; }
+    .sheet-list .who { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-top: 1px solid var(--border); font-size: 0.95rem; }
+    .sheet-list .who .av { width: 36px; height: 36px; border-radius: 50%; background: var(--surface-2); color: var(--text-muted); display: flex; align-items: center; justify-content: center; flex: none; }
+    .sheet-list .who.me { font-weight: 700; }
+    .sheet-list .none-txt { padding: 16px 4px; text-align: center; }
+    .heart .ic { width: 20px; height: 20px; }
+    .heart.on { color: #fb7185; border-color: #fb7185; background: rgba(251,113,133,0.1); }
+    .heart.on .ic { fill: currentColor; }
+    .cheart { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 40px; flex: none; }
+    .ccnt { font-size: 0.75rem; line-height: 1; color: var(--text-muted); }
+    .ccnt.has { color: #fb7185; font-weight: 700; }
+    .cmain { flex: 1; min-width: 0; }
+    .cname { font-size: 0.95rem; font-weight: 600; }
+    .cdel { width: 28px; height: 28px; min-height: 0; padding: 0; flex: none; background: transparent; color: var(--text-muted); border: 0; }
+    .divider { border: 0; border-top: 1px solid var(--border); margin: var(--gap) 0; }
+
+    /* トースト：操作したことを下に短く出す */
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(90px); max-width: calc(100vw - 32px); background: var(--surface); border: 1px solid rgba(34,197,94,0.4); color: var(--green); padding: 12px 22px; border-radius: 22px; width: max-content; font-size: 0.88rem; font-weight: 500; box-shadow: 0 4px 16px rgba(0,0,0,.4); transition: transform .3s ease; z-index: 10000; text-align: center; pointer-events: none; }
+    .toast.err { border-color: rgba(239,68,68,0.4); color: #fca5a5; }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h12l-2.5 4L17 12H5"/></symbol>
+    <symbol id="i-walk" viewBox="0 0 24 24"><circle cx="13" cy="4.5" r="1.8"/><path d="M13 8l-2 6M11 14l-3 7M11 14l3 3 1 4M12.4 9.5L8.5 11M12.4 9.5l3.6 2.5"/></symbol>
+    <symbol id="i-fork" viewBox="0 0 24 24"><path d="M6 3v7M9 3v7M6 7h3M7.5 10v11M17 21V3c-2.5 1.5-3 5-3 8h3"/></symbol>
+    <symbol id="i-glass" viewBox="0 0 24 24"><path d="M6 4h12l-1 7a5 5 0 0 1-10 0zM12 16v5M8.5 21h7"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l5 5 9-10"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.5S3.5 15 3.5 9A4.5 4.5 0 0 1 12 6.8 4.5 4.5 0 0 1 20.5 9c0 6-8.5 11.5-8.5 11.5z"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.8 0 5 2.2 5 5"/></symbol>
+  </svg>
+  <header>
+    <span>WCMs <small>アフターの集合</small></span>
+    <small id="modeBadge"></small>
+  </header>
+
+  <main>
+    <!-- ホーム -->
+    <section id="home" class="screen active">
+      <div class="notice" id="demoNotice" hidden>
+        お試しモードです（Firebase 未設定）。同じブラウザの別タブ同士でしか共有されません。設定方法は README を見てください。
+      </div>
+
+      <!-- 名前を選ぶ -->
+      <div class="card" id="nameCard" hidden>
+        <h2>はじめに、あなたの名前を登録</h2>
+        <p class="section-label"><svg class="ic"><use href="#i-users"/></svg>今日の練習に出た人：名簿から選ぶ</p>
+        <input id="nameSearch" type="search" placeholder="名簿を検索" autocomplete="off">
+        <div class="chips gens" id="nameGen" hidden></div>
+        <div class="shoplist" id="nameList"></div>
+        <p class="section-label"><svg class="ic"><use href="#i-glass"/></svg>アフターから参加する人：名前を入力</p>
+        <input id="nameInput" maxlength="30" placeholder="例：たけし" autocomplete="off">
+        <button id="nameOkBtn">この名前で入る</button>
+        <button id="nameCancelBtn" class="sub">やめる</button>
+      </div>
+
+      <div class="card" id="openCard">
+        <h2 id="openTitle">今日のアフター</h2>
+        <p class="muted" id="openMsg">アフターを開いています…</p>
+        <button id="openBtn" hidden>今日のアフターを開く</button>
+      </div>
+
+      <p class="err" id="homeErr"></p>
+
+      <div class="card" id="setupCard">
+        <details id="apiDetails">
+          <summary class="muted">出欠アプリの設定（最初の1回だけ）</summary>
+          <label for="apiUrl">出欠アプリのURL</label>
+          <input id="apiUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+          <button id="apiSaveBtn" class="sub">保存する</button>
+          <button id="apiLinkBtn" class="sub">メンバーに配るリンクをコピー</button>
+          <p class="muted">配るリンクに入るのは、出欠アプリのURLだけです（キーの類は入りません）。メンバーは一度そのリンクを開けば、あとは普通に開くだけで使えます。</p>
+        </details>
+      </div>
+
+      <p class="muted">位置情報は使いません。アフターは翌朝4時に自動で消えます。</p>
+    </section>
+
+    <!-- ボード -->
+    <section id="room" class="screen">
+      <div class="top">
+        <div class="date" id="roomDate"></div>
+        <div class="top-r">
+          <div class="muted" id="remain"></div>
+          <button class="icon" id="settingsBtn" title="設定" aria-label="設定"><svg class="ic"><use href="#i-gear"/></svg></button>
+        </div>
+      </div>
+
+      <div class="pane" id="pane1">
+      <div class="card">
+        <p class="card-title"><span class="t"><svg class="ic"><use href="#i-fork"/></svg>お店を選ぶ</span></p>
+        <input id="shopSearch" type="search" placeholder="お店の名前を入れて追加" autocomplete="off">
+        <div class="sug" id="shopSug" hidden></div>
+        <div class="shoplist" id="shopList"></div>
+        <div class="chips sim" id="shopSimilar" hidden></div>
+        <button id="shopAddBtn" class="sub dash" hidden></button>
+        <button class="link" id="shopChange" hidden>別のお店に変更</button>
+
+        <div id="withBlock" hidden>
+          <p class="section-label"><svg class="ic"><use href="#i-users"/></svg> <span id="withTitle"></span> <span id="withSummary"></span></p>
+          <p class="hint">チェックした人も、同じ状況になります</p>
+          <input id="withSearch" type="search" placeholder="名前を検索" autocomplete="off">
+          <div class="chips gens" id="withGen" hidden></div>
+          <div class="shoplist" id="withList"></div>
+        </div>
+      </div>
+
+      <!-- 自分のカード：いまの状況を1タップで切り替える -->
+      <div class="hero" id="hero">
+        <div class="hero-head">
+          <div class="hero-user"><svg class="ic"><use href="#i-user"/></svg><span id="heroName"></span></div>
+          <div class="hero-sub" id="meStatus"></div>
+          <span class="pill" id="heroPill"></span>
+        </div>
+        <div class="quick">
+          <button id="qShop" class="qbtn"></button>
+          <button id="qMove" class="qbtn"></button>
+          <button id="qArrive" class="qbtn"></button>
+        </div>
+      </div>
+      </div>
+
+      <div class="pane" id="pane2" hidden>
+      <div class="card">
+        <p class="card-title"><span class="t"><svg class="ic"><use href="#i-glass"/></svg>二次会の候補</span><span class="card-title-count" id="afterNow"></span></p>
+        <p class="hint">ハートを長押しすると、押した人の一覧が出ます</p>
+        <input id="afterShop" placeholder="お店の名前を入れて追加" autocomplete="off">
+        <div class="sug" id="afterSug" hidden></div>
+        <div class="chips sim" id="afterSimilar" hidden></div>
+        <button id="afterShopBtn" class="sub dash" hidden></button>
+        <div class="cands" id="afterList"></div>
+      </div>
+      </div>
+
+      <div class="pane" id="pane3" hidden>
+      <div class="card">
+        <p class="card-title"><span class="t"><svg class="ic"><use href="#i-users"/></svg>みんなの状況</span><span class="card-title-count" id="summary"></span></p>
+        <div id="board"></div>
+        <button id="rosterBtn" class="sub small" hidden>出席者名簿を更新</button>
+      </div>
+      </div>
+
+
+    </section>
+  </main>
+
+  <!-- 下のタブ：一次会 / 二次会 / みんなの状況（ボード画面のときだけ出る） -->
+  <nav class="bnav" id="bnav" aria-label="画面の切り替え">
+    <button data-tab="1" class="on"><svg class="ic"><use href="#i-fork"/></svg><span>一次会</span></button>
+    <button data-tab="2"><svg class="ic"><use href="#i-glass"/></svg><span>二次会<b class="badge" id="badge2" hidden></b></span></button>
+    <button data-tab="3"><svg class="ic"><use href="#i-users"/></svg><span>みんなの状況<b class="badge" id="badge3" hidden></b></span></button>
+  </nav>
+
+  <div class="sheet-bg" id="sheetBg"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-head" id="sheetHead">
+      <div class="sheet-grip"></div>
+      <div class="sheet-title" id="sheetTitle">行きたい人</div>
+      <div class="sheet-sub" id="sheetSub"></div>
+    </div>
+    <div class="sheet-list" id="sheetList"></div>
+  </div>
+  <div id="toast" class="toast"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+  <script>
+    // ============================================================
+    // 設定：Firebase のコンソールで取得した値をここに貼る（README 参照）
+    // 空のままだと「お試しモード」（同じブラウザの別タブ間だけ）で動く
+    // ============================================================
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyD7eiB6jT_1ox7Yfdz8TCxEryAF8y54bLU",
+      authDomain: "wcms-92f78.firebaseapp.com",
+      databaseURL: "https://wcms-92f78-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "wcms-92f78",
+      storageBucket: "wcms-92f78.firebasestorage.app",
+      messagingSenderId: "507561141213",
+      appId: "1:507561141213:web:f0a813730990ba983f0c34"
+    };
+
+    const STORE_PREFIX = 'wcms_';
+    const ROSTER_STALE_MS = 30 * 60000;   // 出席者名簿をこれより古ければ、開いたときに取り込み直す
+    const DAY_START_HOUR = 4;             // ボードの1日は朝4時に切り替わる（深夜の二次会まで同じボード）
+
+    // ---------- いつものお店（サークルでよく行くお店）----------
+    // ここに書いたお店は、全員の端末で、検索欄の候補に最初から出る。
+    // name: 店名（20文字まで） / alt: 別の書き方（「タレカツ」「マクドナルド」など）。これで打っても候補に出る
+    const REGULAR_SHOPS = [
+      { name: 'やったる', alt: ['らあ麺 やったる', 'らぁ麺 やったる'] },                       // 高田馬場2-16-4
+      { name: 'たかとら', alt: ['鷹虎', '麺屋武蔵 鷹虎'] },                                    // 高田馬場2丁目
+      { name: 'マック 高田馬場駅前店', alt: ['マクドナルド', 'マクド'] },                       // 早稲田通り
+      { name: 'やよい軒 高田馬場店' },                                                        // 高田馬場3-3-2
+      { name: 'やよい軒 馬場口店' },                                                          // 早稲田通り（高田馬場2丁目）
+      { name: 'たれかつ', alt: ['タレカツ', '新潟カツ丼 タレカツ'] },                          // 西早稲田3-27-25
+      { name: 'めんちん 高田馬場店', alt: ['麺珍亭', '東京麺珍亭本舗', '麺珍'] },              // 高田馬場1-12-1
+      { name: 'めんちん 西早稲田店', alt: ['麺珍亭', '東京麺珍亭本舗', '麺珍'] },              // 西早稲田2-3-25
+      { name: 'めんちん 鶴巻町本店', alt: ['麺珍亭', '東京麺珍亭本舗', '麺珍'] },              // 戸塚町1-104-3
+      { name: '油そば学会 総本店', alt: ['アブラ学会', 'アブラ學会', '武蔵野アブラ學会', 'あぶら学会'] },   // 西早稲田1-18-12
+      { name: '油そば学会 別館', alt: ['アブラ学会', 'アブラ學会', '武蔵野アブラ學会', 'あぶら学会'] },     // 喜久井町65
+      { name: 'めんじい 馬場下2階店', alt: ['麺爺', '麺爺あぶら'] },                           // 馬場下町18
+      { name: 'めんじい ラボ', alt: ['麺爺', '麺爺ラボ'] },                                    // 馬場下町14
+      { name: 'めんじい 早稲田店', alt: ['麺爺', '麺爺あぶら'] },                              // 早稲田町69-4
+      { name: 'マック 早稲田駅前店', alt: ['マクドナルド', 'マクド'] },                        // 馬場下町
+    ];
+
+    function load(key, fallback) {
+      try { const v = localStorage.getItem(STORE_PREFIX + key); return v === null ? fallback : JSON.parse(v); }
+      catch (e) { return fallback; }
+    }
+    function save(key, value) { try { localStorage.setItem(STORE_PREFIX + key, JSON.stringify(value)); } catch (e) {} }
+    function remove(key) { try { localStorage.removeItem(STORE_PREFIX + key); } catch (e) {} }
+    const $ = id => document.getElementById(id);
+    const ic = n => `<svg class="ic" aria-hidden="true"><use href="#i-${n}"/></svg>`;   // 簡易ピクトグラム（SVGの定義は body の先頭）
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const ja = (a, b) => a.localeCompare(b, 'ja');
+    const kana = s => String(s).replace(/[\u3041-\u3096]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));   // ひらがな → カタカナ
+    const norm = s => String(s).normalize('NFKC').toLowerCase().replace(/\s+/g, '');   // 全角/半角・大文字/小文字・空白のちがいを無視して比べる
+    // 名前・店名は { キー: 名前 } で保存する（キーは名前から作るので同じものは重複しない）
+    const mapKey = name => name.replace(/[.$#\[\]\/]/g, '_');
+    const toMap = names => Object.fromEntries(names.map(n => [mapKey(n), n]));
+
+    // ---------- ボードの日付（日本時間の朝4時で切り替え） ----------
+    function boardDay(ms = Date.now()) {
+      const t = new Date(ms + (9 - DAY_START_HOUR) * 3600000);   // 日本時間(+9)で朝4時を日付の境目にする
+      const y = t.getUTCFullYear(), m = t.getUTCMonth() + 1, d = t.getUTCDate();
+      const startMs = Date.UTC(y, m - 1, d) - (9 - DAY_START_HOUR) * 3600000;   // その日の朝4時（日本時間）
+      return {
+        id: `${y}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}`,
+        label: `${m}/${d}（${'日月火水木金土'[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]}）`,
+        expiresAt: startMs + 24 * 3600000,
+      };
+    }
+
+    // ============================================================
+    // バックエンド（Firebase / お試し用ローカル）
+    //   people/{名前のキー}: { name, st, shop, t } … 状況は端末ではなく「人」ごとに持つ
+    //   （幹事が、アプリを使っていない人の分もまとめて更新できる）
+    // ============================================================
+    const hasFirebase = !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL);
+
+    const firebaseBackend = {
+      async init() {
+        firebase.initializeApp(FIREBASE_CONFIG);
+        const cred = await firebase.auth().signInAnonymously();
+        this.db = firebase.database();
+        this.db.ref('.info/connected').on('value', s => setOnline(!!s.val()));
+        return cred.user.uid;
+      },
+      ref(id, sub) { return this.db.ref('rooms/' + id + (sub ? '/' + sub : '')); },
+      async createRoom(id, data) {
+        const r = await this.ref(id).transaction(cur => (cur === null ? data : undefined));
+        return r.committed;
+      },
+      async getRoom(id) { return (await this.ref(id).get()).val(); },
+      watchRoom(id, cb) {
+        const r = this.ref(id);
+        const fn = r.on('value', s => cb(s.val()), e => toast('アフターを読み込めませんでした：' + (e.message || e), true));
+        return () => r.off('value', fn);
+      },
+      async setPeople(id, map) { await this.ref(id, 'people').update(map); },
+      async removePerson(id, key) { await this.ref(id, 'people/' + key).remove(); },
+      // 二次会の候補と「行きたい」（ハート）。afterLikes/{候補のキー}/{人のキー} = その人の名前
+      async addAfterShop(id, key, name) { await this.ref(id, 'afterShops/' + key).set(name); },
+      async removeAfterShop(id, key) { await this.ref(id, 'afterShops/' + key).remove(); await this.ref(id, 'afterLikes/' + key).remove(); await this.ref(id, 'afterUrl/' + key).remove(); await this.ref(id, 'afterHp/' + key).remove(); },
+      async setLike(id, shopKey, personKey, name) {
+        const r = this.ref(id, 'afterLikes/' + shopKey + '/' + personKey);
+        if (name) await r.set(name); else await r.remove();
+      },
+      async setRoster(id, map, at) { await this.ref(id).update({ roster: map, rosterAt: at }); },
+      async addShop(id, key, name) { await this.ref(id, 'shops/' + key).set(name); },
+      async removeShop(id, key) { await this.ref(id, 'shops/' + key).remove(); await this.ref(id, 'shopMin/' + key).remove(); await this.ref(id, 'shopUrl/' + key).remove(); await this.ref(id, 'hpShops/' + key).remove(); },
+      async setLink(id, kind, key, url) { await this.ref(id, kind + '/' + key).set(url); },   // kind: 'shopUrl' | 'afterUrl'
+      async deleteRoom(id) { await this.ref(id).remove(); },   // 期限切れの日だけルールで許される
+    };
+
+    // localStorage + storage イベントで別タブに伝える
+    const localBackend = {
+      listeners: {},
+      KEY: STORE_PREFIX + 'demo_rooms',
+      read() { try { return JSON.parse(localStorage.getItem(this.KEY)) || {}; } catch (e) { return {}; } },
+      write(all) { localStorage.setItem(this.KEY, JSON.stringify(all)); this.notify(); },
+      notify() {
+        const all = this.read();
+        Object.keys(this.listeners).forEach(id => this.listeners[id].forEach(cb => cb(all[id] || null)));
+      },
+      async init() {
+        window.addEventListener('storage', e => { if (e.key === this.KEY) this.notify(); });
+        let uid = sessionStorage.getItem(STORE_PREFIX + 'demo_uid');
+        if (!uid) { uid = 'u' + Math.random().toString(36).slice(2, 10); sessionStorage.setItem(STORE_PREFIX + 'demo_uid', uid); }
+        return uid;
+      },
+      async createRoom(id, data) {
+        const all = this.read();
+        if (all[id]) return false;
+        all[id] = data; this.write(all); return true;
+      },
+      async getRoom(id) { return this.read()[id] || null; },
+      watchRoom(id, cb) {
+        (this.listeners[id] = this.listeners[id] || []).push(cb);
+        cb(this.read()[id] || null);
+        return () => { this.listeners[id] = this.listeners[id].filter(f => f !== cb); };
+      },
+      async setPeople(id, map) {
+        const all = this.read(); if (!all[id]) return;
+        all[id].people = { ...(all[id].people || {}), ...map }; this.write(all);
+      },
+      async removePerson(id, key) {
+        const all = this.read();
+        if (all[id] && all[id].people) { delete all[id].people[key]; this.write(all); }
+      },
+      async addAfterShop(id, key, name) {
+        const all = this.read(); if (!all[id]) return;
+        all[id].afterShops = all[id].afterShops || {}; all[id].afterShops[key] = name; this.write(all);
+      },
+      async removeAfterShop(id, key) {
+        const all = this.read(); if (!all[id]) return;
+        if (all[id].afterShops) delete all[id].afterShops[key];
+        if (all[id].afterLikes) delete all[id].afterLikes[key];
+        if (all[id].afterUrl) delete all[id].afterUrl[key];
+        if (all[id].afterHp) delete all[id].afterHp[key];
+        this.write(all);
+      },
+      async setLike(id, shopKey, personKey, name) {
+        const all = this.read(); if (!all[id]) return;
+        const likes = (all[id].afterLikes = all[id].afterLikes || {});
+        likes[shopKey] = likes[shopKey] || {};
+        if (name) likes[shopKey][personKey] = name; else delete likes[shopKey][personKey];
+        this.write(all);
+      },
+      async setRoster(id, map, at) { const all = this.read(); if (all[id]) { all[id].roster = map; all[id].rosterAt = at; this.write(all); } },
+      async addShop(id, key, name) {
+        const all = this.read(); if (!all[id]) return;
+        all[id].shops = all[id].shops || {}; all[id].shops[key] = name; this.write(all);
+      },
+      async removeShop(id, key) {
+        const all = this.read();
+        if (all[id] && all[id].shops) { delete all[id].shops[key]; if (all[id].shopMin) delete all[id].shopMin[key]; if (all[id].shopUrl) delete all[id].shopUrl[key]; if (all[id].hpShops) delete all[id].hpShops[key]; this.write(all); }
+      },
+      async setLink(id, kind, key, url) {
+        const all = this.read(); if (!all[id]) return;
+        all[id][kind] = all[id][kind] || {}; all[id][kind][key] = url; this.write(all);
+      },
+      async deleteRoom(id) { const all = this.read(); if (all[id] && all[id].expiresAt < Date.now()) { delete all[id]; this.write(all); } },
+    };
+
+    const backend = hasFirebase ? firebaseBackend : localBackend;
+
+    // ============================================================
+    // 状態
+    //   サーバーに載る状況は3つだけ: shop（お店にいる） / moving（ロタへ向かっている） / arrived（ロタ着）
+    //   none は「まだお店を選んでいない」画面上だけの状態で、サーバーには書かない
+    // ============================================================
+    let uid = null;
+    let myName = load('name', '');
+    let roomId = null, roomData = null, unwatch = null;
+    let myStatus = 'none', myShop = '';
+    let withKeys = new Set();    // 「いっしょに行く人」に選んだ人のキー（自分の操作と同じ状況にまとめて更新する）
+    let autoOpen = true;         // 退出した直後は、自動で開き直さない
+
+    const myKey = () => mapKey(myName);
+    // 通信が3秒以上切れたら、ヘッダーに「オフライン」と出す（つながるまで、操作は端末に溜まって後で送られる）
+    let offTimer = null;
+    function setOnline(on) {
+      clearTimeout(offTimer);
+      const b = $('modeBadge');
+      if (on) { b.textContent = ''; b.classList.remove('warn'); }
+      else offTimer = setTimeout(() => { b.textContent = 'オフライン'; b.classList.add('warn'); }, 3000);
+    }
+    // トースト：操作したことを下に短く出す（エラーは赤）
+    let toastTimer = null;
+    function toast(msg, isErr, ms) {
+      const t = $('toast');
+      t.textContent = msg; t.classList.toggle('err', !!isErr); t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), ms || (isErr ? 6000 : 2600));
+    }
+    // 以前の「エラー表示欄」の代わり：文字を入れると赤いトーストになる（空は何もしない）
+    const roomErr = { set textContent(v) { if (v) toast(v, true); } };
+    let resumeTab = 0;   // 読み込み直しのあと、最初にボードを出すときに戻すタブ（1回だけ使う）
+    function show(id) {
+      const wasRoom = document.body.classList.contains('in-room');
+      document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+      document.body.classList.toggle('in-room', id === 'room');
+      if (id === 'room' && !wasRoom) { setTab(resumeTab || 1); resumeTab = 0; }
+    }
+    // 下のタブ：一次会（お店・自分の状況）/ 二次会 / みんなの状況
+    function setTab(n) {
+      closeSheet();
+      try { sessionStorage.setItem(STORE_PREFIX + 'tab', String(n)); } catch (e) {}   // 読み込み直しても、同じタブに戻れるように
+      [1, 2, 3].forEach(i => { $('pane' + i).hidden = i !== n; });
+      document.querySelectorAll('#bnav button').forEach(b => b.classList.toggle('on', +b.dataset.tab === n));
+      $('room').scrollTop = 0;
+    }
+    document.querySelectorAll('#bnav button').forEach(b => { b.onclick = () => setTab(+b.dataset.tab); });
+    function fmtRemain(ms) {
+      if (ms <= 0) return '終了しました';
+      const m = Math.ceil(ms / 60000);
+      return `あと${Math.floor(m / 60)}時間${m % 60}分で自動終了`;
+    }
+
+    // ============================================================
+    // 出欠アプリから出席者を取り込む
+    // ============================================================
+    let api = load('api', null);   // { url }
+    if (api && api.key) { api = { url: api.url }; save('api', api); }   // 昔の連携キーが残っていたら捨てる
+    remove('hp');   // 以前のお店検索（ホットペッパー）のキーが端末に残っていたら消す
+    const hasApi = () => !!(api && api.url);
+
+    // 出欠アプリのサーバーに「今日の名簿をボードに入れて」と合図を送る。
+    // 名前はサーバーがボード（Firebase）へ直接書き込む。こちらには結果しか返ってこないので、連携キーは要らない
+    async function requestSync() {
+      if (!hasApi()) throw new Error('出欠アプリとの連携が設定されていません');
+      let json;
+      try {
+        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 10000);   // 出欠アプリが遅いときに、いつまでも待たない
+        try {
+          const res = await fetch(api.url + (api.url.includes('?') ? '&' : '?') + 'api=boardSync', { signal: ctl.signal });
+          json = await res.json();
+        } finally { clearTimeout(timer); }
+      } catch (e) {
+        throw new Error('出欠アプリにつながりませんでした。電波の良い所でもう一度開くか、設定の出欠アプリのURLを確かめてください。');
+      }
+      // 今日のボードの名前（日付＋サーバーだけが知る合言葉）。日付だけでは当てられないようにしてある
+      if (typeof json.key === 'string' && /^[0-9a-f-]{32,100}$/.test(json.key)) save('roomSecret', json.key);   // 一度受け取れば、以後は出欠アプリがなくても今日のボードの名前を計算できる
+      if (typeof json.room === 'string' && /^d{8}_[0-9a-f]{16,64}$/.test(json.room)) save('roomKey', { day: boardDay().id, key: json.room });
+      if (!json.ok && json.error === 'noAttendees') { const err = new Error('noAttendees'); err.code = 'noAttendees'; throw err; }
+      if (!json.ok) throw new Error({
+        noAttendees: '今日の出席者がまだいません。出欠アプリで出席（〇）を付けるか、練習の記録が済んでから、もう一度開いてください。',
+        notSetup: '出欠アプリ側で、アフターとの連携がまだ設定されていません。',
+      }[json.error] || '出欠アプリから名簿を取り込めませんでした');
+    }
+    // 今日のボードの名前。連携がなければ日付、連携があれば、出欠アプリのサーバーが教えてくれた名前（まだ知らなければ null）
+    function knownRoomId(day) {
+      if (!(hasFirebase && hasApi())) return day.id;
+      const k = load('roomKey', null);
+      return (k && k.day === day.id && k.key) ? k.key : null;
+    }
+    // 受け取った合言葉から、今日のボードの名前を自分で計算する（出欠アプリのサーバーと同じ HMAC-SHA256。出欠アプリに頼らず開ける）
+    async function computeRoomId(day) {
+      const secret = load('roomSecret', '');
+      if (!secret || !(window.crypto && crypto.subtle)) return null;
+      try {
+        const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+        const sig = new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(day.id)));
+        const hex = Array.from(sig, b => b.toString(16).padStart(2, '0')).join('');
+        const key = day.id + '_' + hex.slice(0, 16);
+        save('roomKey', { day: day.id, key });
+        return key;
+      } catch (e) { return null; }
+    }
+    async function ensureRoomId(day) { return knownRoomId(day) || await computeRoomId(day); }
+    // お試しモード用の見本のボード（出欠アプリのサーバーは Firebase にしか書き込めないため）
+    const demoRoom = day => ({
+      createdAt: Date.now(), expiresAt: day.expiresAt, rosterAt: Date.now(),
+      roster: toMap(['たけし', 'あやか', 'けんた', 'みお']),
+      rosterGen: { 'たけし': '63', 'あやか': '64', 'けんた': '64', 'みお': '65' },
+      shops: toMap(['サイゼリヤ', '鳥貴族', '和民']),
+    });
+
+    // ============================================================
+    // 今日のボードを開く（なければ自動で作る）
+    // ============================================================
+    async function openToday() {
+      $('homeErr').textContent = '';
+      $('openBtn').hidden = true; $('openMsg').textContent = 'ボードを開いています…';
+      const day = boardDay();
+      $('openTitle').textContent = day.label + ' のアフター';
+      try {
+        // 昔のボードの掃除（期限切れの日だけ消せる）
+        [1, 2, 3].forEach(k => backend.deleteRoom(boardDay(Date.now() - k * 86400000).id).catch(() => {}));
+
+        let rid = await ensureRoomId(day);
+        if (!rid) {   // この端末がまだ合言葉を知らない（初めて・データを消した）ときだけ、出欠アプリに聞く
+          try { await requestSync(); } catch (e) { if (e.code !== 'noAttendees') throw e; }
+          rid = await ensureRoomId(day) || day.id;
+        }
+        let room = await backend.getRoom(rid);
+        const stale = !room || !room.rosterAt || Date.now() - room.rosterAt > ROSTER_STALE_MS;
+        if (hasFirebase && hasApi() && stale) {
+          if (room) {
+            requestSync().catch(() => {});   // ボードがあるなら、名簿の取り込みは裏で。待たずに開く（届けば画面が自動で更新される）
+          } else {
+            try { await requestSync(); rid = knownRoomId(day) || rid; room = await backend.getRoom(rid); }
+            catch (e) {
+              // 出席者がまだいない日（練習のない日・記録前）や、出欠アプリが遅い・止まっているときも、名簿なしでボードを始める。名前を入力して入れる
+              const keyKnown = !!load('roomSecret', '') || e.code === 'noAttendees';
+              if (!keyKnown) throw e;
+              await backend.createRoom(rid, { createdAt: Date.now(), expiresAt: day.expiresAt }); room = await backend.getRoom(rid);
+            }
+          }
+        }
+        if (!room && !hasFirebase) {
+          room = demoRoom(day);
+          await backend.createRoom(rid, room);
+        }
+        if (!room) throw new Error(hasApi() ? '今日のアフターを作れませんでした。少し待ってから、もう一度開いてください。'
+          : '今日のアフターはまだ始まっていません。サークル出欠との連携が入ったリンクから開いてください。');
+
+        // 一度名前を登録した端末は、名簿にいない日（アフターから参加）でも、そのまま自分として入る
+        if (myName) await enterRoom(rid);
+        else showNamePicker(rid, room);
+      } catch (e) {
+        $('openMsg').textContent = '';
+        $('openBtn').hidden = false; $('openBtn').textContent = 'もう一度開く';
+        $('homeErr').textContent = e.message || String(e);
+      }
+    }
+
+    // ---------- 名前を選ぶ（名簿から。いない人は入力） ----------
+    let pending = null;      // { id, room }
+    let pickedName = '';
+
+    function showNamePicker(id, room) {
+      pending = { id, room };
+      pickedName = '';
+      $('nameSearch').value = ''; $('nameInput').value = '';
+      if (myName && Object.values(room.roster || {}).includes(myName)) pickedName = myName;
+      else if (myName) $('nameInput').value = myName;
+      renderNameList();
+      $('nameCard').hidden = false; $('openCard').hidden = true;
+      $('homeErr').textContent = '';
+    }
+    function hideNamePicker() {
+      pending = null;
+      $('nameCard').hidden = true; $('openCard').hidden = false;
+    }
+    // 代の絞り込み（名簿に代の情報があるときだけ出す）。名前の検索と組み合わせて使える
+    const genFilter = { nameGen: '', withGen: '' };
+    function renderGenChips(boxId, keys, gens, redraw) {
+      const box = $(boxId);
+      const counts = {};
+      keys.forEach(k => { const g = gens[k]; if (g) counts[g] = (counts[g] || 0) + 1; });
+      const list = Object.keys(counts).sort((a, b) => b - a);
+      if (genFilter[boxId] && !counts[genFilter[boxId]]) genFilter[boxId] = '';
+      box.hidden = !list.length;
+      box.innerHTML = '';
+      [''].concat(list).forEach(g => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'sub' + (genFilter[boxId] === g ? ' on' : '');
+        b.textContent = g ? g + '代' : '全員';
+        b.onclick = () => { genFilter[boxId] = g; redraw(); };
+        box.appendChild(b);
+      });
+    }
+    function renderNameList() {
+      if (!pending) return;
+      const q = norm($('nameSearch').value);
+      const gens = pending.room.rosterGen || {};
+      const entries = Object.entries(pending.room.roster || {});
+      renderGenChips('nameGen', entries.map(e => e[0]), gens, renderNameList);
+      const g = genFilter.nameGen;
+      const roster = entries.filter(([k]) => !g || gens[k] === g).map(e => e[1]).sort(ja);
+      const names = roster.filter(n => !q || norm(n).includes(q));
+      const box = $('nameList');
+      box.innerHTML = '';
+      names.forEach(n => {
+        const l = document.createElement('label');
+        if (pickedName === n) l.className = 'sel';
+        const r = document.createElement('input');
+        r.type = 'radio'; r.name = 'who'; r.checked = pickedName === n;
+        r.onchange = () => { pickedName = n; $('nameInput').value = ''; renderNameList(); };
+        const t = document.createElement('span'); t.textContent = n;
+        l.append(r, t);
+        box.appendChild(l);
+      });
+      if (!names.length) box.innerHTML = `<div class="none-txt" style="padding:10px">${roster.length ? '該当する名前がありません' : '出席者の名簿はありません。下に名前を入力してください'}</div>`;
+    }
+    function nameOk() {
+      const typed = $('nameInput').value.trim();
+      const name = typed || pickedName;
+      if (!name) { $('homeErr').textContent = '名前を選ぶか、入力してください'; return; }
+      myName = name; save('name', myName); save('nameTyped', typed ? name : '');
+      const id = pending.id;
+      hideNamePicker();
+      enterRoom(id);
+    }
+    function nameCancel() {
+      hideNamePicker();
+      autoOpen = false;
+      $('openMsg').textContent = ''; $('openBtn').hidden = false; $('openBtn').textContent = '今日のアフターを開く';
+    }
+
+    // ============================================================
+    // ボード
+    // ============================================================
+    async function enterRoom(id) {
+      roomId = id; roomData = null;
+      save('lastRoom', id);   // 読み込み直したとき、「開いています…」を挟まずにこのボードへ戻る
+      myStatus = 'none'; myShop = ''; withKeys = new Set();
+      $('roomDate').textContent = boardDay().label;
+      roomErr.textContent = '';
+      $('shopSearch').value = ''; $('withSearch').value = '';
+      $('remain').textContent = '読み込み中…';
+      show('room');
+      unwatch = backend.watchRoom(id, onRoomUpdate);
+      // 保険：数秒たっても中身が届かないときは、取りに行く（それでもだめなら理由を出す）
+      setTimeout(async () => {
+        if (roomId !== id || roomData) return;
+        try { onRoomUpdate(await backend.getRoom(id)); }
+        catch (e) { toast('アフターを読み込めませんでした。電波の良い所で開き直してください（' + (e.message || e) + '）', true, 10000); }
+      }, 4000);
+    }
+
+    function onRoomUpdate(data) {
+      try { onRoomUpdate_(data); }
+      catch (e) { toast('表示中にエラーが起きました：' + (e.message || e), true, 10000); }
+    }
+    function onRoomUpdate_(data) {
+      if (!roomId) return;
+      if (!data || data.expiresAt <= Date.now()) { finishRoom('今日のアフターは終了しました'); return; }
+      roomData = data;
+      // 自分の状況はサーバーの内容に合わせる（再読み込み後や、幹事に動かされたときも反映される）
+      const mine = (data.people || {})[myKey()];
+      if (mine) { myStatus = mine.st; myShop = mine.shop || ''; }
+      else { myStatus = 'none'; myShop = ''; }
+      render();
+    }
+
+    function shopEntries() {
+      const s = roomData && roomData.shops;
+      if (!s || typeof s !== 'object') return [];
+      return Object.entries(s).map(([key, name]) => ({ key, name })).sort((a, b) => ja(a.name, b.name));
+    }
+    // 名簿にいる人＋ボードに載っている人（キー→名前）
+    function allNames() {
+      const people = roomData.people || {};
+      const out = { ...(roomData.roster || {}) };
+      Object.entries(people).forEach(([k, p]) => { out[k] = p.name; });
+      return out;
+    }
+
+    // 自分と「いっしょに行く人」を、同じ状況にしてサーバーに書く
+    // only を渡すと、その人たちだけ書く（チェックを入れた直後に、その人だけ動かすとき）
+    function applyStatus(st, shop, only) {
+      if (!roomId || !myName) return;
+      const names = allNames();
+      const t = Date.now();
+      const upd = {};
+      (only || [myKey(), ...[...withKeys].filter(k => k !== myKey())]).forEach(k => {
+        const name = k === myKey() ? myName : names[k];
+        if (!name) return;
+        // 同じ状況のままお店だけ選び直すときは、押した時刻を引き継ぐ
+        const prev = (roomData.people || {})[k];
+        const t0 = prev && prev.st === st && prev.t ? prev.t : t;
+        const rec = { name, st, t: t0 };
+        if (shop) rec.shop = shop;
+        upd[k] = rec;
+      });
+      backend.setPeople(roomId, upd)
+        .catch(e => { roomErr.textContent = '送信に失敗しました：' + (e.message || e); });
+    }
+
+    function setStatus(st, shop) {
+      const same = myStatus === st;   // 同じ状況のままお店だけ選び直したとき
+      myStatus = st;
+      if (shop !== undefined) myShop = shop;
+      // 同じお店にいた人が1人だけロタへ向かうことはないので、ロタへ向かうを押したら、そのお店の全員をまとめて動かす
+      let mates = [];
+      if (st === 'moving' && myShop) {
+        mates = Object.entries((roomData && roomData.people) || {})
+          .filter(([k, p]) => k !== myKey() && p.st === 'shop' && p.shop === myShop).map(([k]) => k);
+      }
+      if (mates.length) applyStatus(st, myShop, [...new Set([myKey(), ...withKeys, ...mates])]);
+      else applyStatus(st, myShop);
+      render();
+      if (mates.length) toast(`${myShop}の${mates.length + 1}人で、ロタへ向かうと伝えました`);
+      else if (same && shop !== undefined) toast(`${myShop}に変更しました`);
+      else if (st === 'shop') toast(`${myShop}にいると伝えました`);
+      else if (st === 'moving') toast('ロタへ向かうと伝えました');
+      else toast('ロタに着いたと伝えました');
+    }
+
+    // 「いっしょの人」のチェック：入れた人は、すぐ自分と同じ状況にする。外した人は、同じ状況のままなら「まだ選んでいない」に戻す
+    function toggleWith(k, on) {
+      const p = (roomData.people || {})[k];
+      if (on) {
+        // すでに別の場所にいる人（自分で選んだ人）を、まちがって動かさないように確認する
+        if (p && !(p.st === myStatus && (p.shop || '') === myShop)) {
+          const where = p.st === 'shop' ? `「${p.shop || 'お店'}」にいます` : p.st === 'moving' ? 'ロタへ向かっています' : 'ロタに着いています';
+          const msg = myStatus === 'none'
+            ? `${p.name}さんは、すでに${where}。いっしょに行く人に入れると、あなたが状況を選んだとき、同じ状況に移ります。入れますか？`
+            : `${p.name}さんは、すでに${where}。あなたと同じ状況に移しますか？`;
+          if (!confirm(msg)) { render(); return; }
+        }
+        withKeys.add(k);
+        if (myStatus !== 'none') applyStatus(myStatus, myShop, [k]);
+      } else {
+        withKeys.delete(k);
+        if (p && p.st === myStatus && (p.shop || '') === myShop) {
+          backend.removePerson(roomId, k).catch(e => { roomErr.textContent = '送信に失敗しました：' + (e.message || e); });
+        }
+      }
+      render();
+    }
+
+    // ---------- 二次会の候補と「行きたい」（ハート） ----------
+    function afterEntries() {
+      const shops = (roomData && roomData.afterShops) || {};
+      const likes = (roomData && roomData.afterLikes) || {};
+      return Object.entries(shops).map(([key, name]) => ({ key, name, likes: Object.entries(likes[key] || {}) }))
+        .sort((a, b) => b.likes.length - a.likes.length || ja(a.name, b.name));
+    }
+    async function addAfter(info) {
+      if (!roomId) return;
+      if (!info) {
+        const raw = $('afterShop').value.trim();
+        if (!raw) return;
+        if (/^https?:\/\//i.test(raw)) {
+          const m = parseMapsUrl(raw);
+          if (!m || m.error) { roomErr.textContent = (m && m.error) || 'URLを読み取れませんでした'; return; }
+          info = m;
+        } else info = { name: raw.replace(/\s+/g, ' ').slice(0, 20) };
+      }
+      const name = info.name.slice(0, 20);
+      const dup = afterEntries().find(c => norm(c.name) === norm(name));
+      const key = dup ? dup.key : mapKey(name);
+      try {
+        if (!dup) await backend.addAfterShop(roomId, key, name);
+        if (info.url) await backend.setLink(roomId, 'afterUrl', key, info.url);
+        if (!dup || !dup.likes.some(([k]) => k === myKey())) await backend.setLike(roomId, key, myKey(), myName);   // 出した人は、まず自分が行きたい
+      } catch (e) { roomErr.textContent = '追加できませんでした：' + (e.message || e); return; }
+      $('afterShop').value = ''; hideSuggest('afterSug'); toast(`${name}を二次会の候補に追加しました`);
+      renderAfter();
+    }
+    function toggleLike(key, liked) {
+      toast(liked ? '行きたいを取り消しました' : '行きたいを伝えました');
+      backend.setLike(roomId, key, myKey(), liked ? null : myName)
+        .catch(e => { roomErr.textContent = '送信に失敗しました：' + (e.message || e); });
+    }
+    let skipClickUntil = 0;
+    function renderAfter() {
+      if (!roomData) return;
+      const list = afterEntries();
+      $('afterNow').textContent = list.length ? `${list.length}件` : '';
+      $('badge2').hidden = !list.length; $('badge2').textContent = list.length;
+      const q = $('afterShop').value.trim();
+      const isUrl = /^https?:\/\//i.test(q);
+      const dup = !isUrl && list.some(c => norm(c.name) === norm(q));
+      renderSimilar('afterSimilar', q, list.map(c => c.name), name => addAfter({ name }));
+      $('afterShopBtn').hidden = !q || dup;
+      $('afterShopBtn').innerHTML = ic('plus') + (isUrl ? 'このURLのお店を候補に追加' : `「${esc(q)}」を名前だけで候補に追加`);
+      const box = $('afterList');
+      const top = box.scrollTop;
+      box.innerHTML = '';
+      list.forEach(c => {
+        const liked = c.likes.some(([k]) => k === myKey());
+        const row = document.createElement('div'); row.className = 'cand';
+        const h = document.createElement('button');
+        h.className = 'heart' + (liked ? ' on' : ''); h.title = liked ? '行きたいを取り消す' : '行きたい';
+        h.innerHTML = ic('heart'); h.setAttribute('aria-pressed', liked ? 'true' : 'false');
+        // 押す：行きたいの切り替え。長押し（0.5秒）：押した人の一覧が、下から上がってくる
+        const showLikers = () => openSheet(c.key);
+        let timer = null;
+        const stop = () => clearTimeout(timer);
+        h.addEventListener('pointerdown', () => { stop(); timer = setTimeout(() => { skipClickUntil = Date.now() + 800; showLikers(); }, 500); });
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => h.addEventListener(ev, stop));
+        h.oncontextmenu = ev => ev.preventDefault();
+        h.onclick = () => { if (Date.now() < skipClickUntil) { skipClickUntil = 0; return; } toggleLike(c.key, liked); };   // 長押しの直後の「押した」は無視する
+        // ハートの下に、押した人数を出す（数字を押しても、名前を出せる）
+        const cnt = document.createElement('div'); cnt.className = 'ccnt' + (c.likes.length ? ' has' : '');
+        cnt.textContent = c.likes.length; cnt.onclick = showLikers;
+        const heart = document.createElement('div'); heart.className = 'cheart';
+        heart.append(h, cnt);
+        const main = document.createElement('div'); main.className = 'cmain';
+        const nm = document.createElement('div'); nm.className = 'cname'; nm.textContent = c.name;
+        const au = safeUrl(roomData.afterUrl && roomData.afterUrl[c.key]);
+        if (au) nm.appendChild(linkEl(au));
+        main.append(nm);
+        row.append(heart, main);
+        if (!c.likes.length) {   // だれも行きたくない候補は、まちがい追加を消せる
+          const d = document.createElement('button'); d.className = 'cdel'; d.title = '候補から消す'; d.innerHTML = ic('x');
+          d.onclick = () => { if (confirm(`「${c.name}」を候補から消しますか？`)) backend.removeAfterShop(roomId, c.key).catch(e => { roomErr.textContent = '消せませんでした：' + (e.message || e); }); };
+          row.appendChild(d);
+        }
+        box.appendChild(row);
+      });
+      box.scrollTop = top;
+      if (!list.length) box.innerHTML = '<div class="none-txt">まだ候補がありません</div>';
+      renderSheet();   // 開いている一覧も、いまの内容に合わせる
+    }
+
+    // ---------- 行きたい人の一覧（下から上がってくるシート）----------
+    let sheetKey = null, sheetOpenedAt = 0;
+    function openSheet(key) {
+      sheetKey = key; sheetOpenedAt = Date.now();
+      renderSheet();
+      $('sheetBg').classList.add('show'); $('sheet').classList.add('show');
+    }
+    function closeSheet() {
+      sheetKey = null;
+      $('sheetBg').classList.remove('show'); $('sheet').classList.remove('show');
+    }
+    function renderSheet() {
+      if (!sheetKey) return;
+      const c = roomData ? afterEntries().find(x => x.key === sheetKey) : null;
+      if (!c) { closeSheet(); return; }   // 候補が消された
+      $('sheetSub').textContent = `${c.name}・${c.likes.length}人`;
+      const box = $('sheetList');
+      box.innerHTML = '';
+      c.likes.map(([k, n]) => ({ k, n })).sort((a, b) => ja(a.n, b.n)).forEach(({ k, n }) => {
+        const row = document.createElement('div'); row.className = 'who' + (k === myKey() ? ' me' : '');
+        const av = document.createElement('span'); av.className = 'av'; av.innerHTML = ic('user');
+        const nm = document.createElement('span'); nm.textContent = n + (k === myKey() ? '（自分）' : '');
+        row.append(av, nm); box.appendChild(row);
+      });
+      if (!c.likes.length) box.innerHTML = '<div class="none-txt">まだ誰も押していません</div>';
+    }
+
+    // 自分のカードのボタン：お店・移動中・到着を1タップで切り替える（押した状況が青/黄/緑に塗られる）
+    function quick(st) {
+      // お店を選んでいなくても「ロタへ向かう」「ロタに着いた」は押せる（アフターから参加する人）
+      if (st === 'shop' && !myShop) { toast('先に、いるお店を選んでください', true); return; }
+      if (myStatus === st) { if (!myShop) clearMe(); return; }   // お店なしの人は、同じボタンをもう一度押すと取り消し
+      setStatus(st);
+    }
+    // お店の選択を取り消して「まだ選んでいない」に戻す（自分と、同じお店・同じ状況のままの「いっしょの人」）
+    function clearMe() {
+      const people = roomData.people || {};
+      const keys = [myKey(), ...withKeys].filter(k => { const p = people[k]; return p && p.st === myStatus && (p.shop || '') === myShop; });
+      Promise.all(keys.map(k => backend.removePerson(roomId, k)))
+        .catch(e => { roomErr.textContent = '送信に失敗しました：' + (e.message || e); });
+      const hadShop = !!myShop;
+      withKeys = new Set(); myStatus = 'none'; myShop = '';
+      render();
+      toast(hadShop ? 'お店の選択を取り消しました' : '取り消しました');
+    }
+    function renameClick() {
+      if (myStatus !== 'none' && !confirm('名前を選び直すと、いまの状況と「行きたい」は消えます。よろしいですか？')) return;
+      leaveRoom();
+    }
+
+    // お店のラジオボタン一覧（検索で絞り込み）
+    let shopEdit = false;   // 選んだあとに「別のお店に変更」を開いているか
+    function renderShops() {
+      if (!roomData) return;
+      if (myStatus === 'none') shopEdit = false;
+      // お店を選んだら、検索欄とほかの候補は畳んで、選んだお店だけを見せる（空いた所に「いっしょの人」が来る）
+      const folded = myStatus !== 'none' && !!myShop && !shopEdit && shopEntries().some(s => s.name === myShop);
+      $('shopSearch').hidden = folded;
+      if (folded) { $('shopSearch').value = ''; $('shopSug').hidden = true; }
+      $('shopChange').hidden = !(folded && myStatus !== 'shop');
+      const q = $('shopSearch').value.trim();
+      const qn = norm(q);
+      const isUrl = /^https?:\/\//i.test(q);   // URLを貼っているときは、絞り込まない
+      const counts = {};
+      const whoAt = {};   // お店ごとの、そこにいる人の名前
+      Object.values(roomData.people || {}).forEach(m => { if (m.st === 'shop') { counts[m.shop] = (counts[m.shop] || 0) + 1; (whoAt[m.shop] = whoAt[m.shop] || []).push(m.name); } });
+      const all = shopEntries();
+      const list = folded ? all.filter(s => s.name === myShop) : all.filter(s => isUrl || !qn || norm(s.name).includes(qn));
+      const box = $('shopList');
+      const top = box.scrollTop;
+      box.innerHTML = '';
+      list.forEach(s => {
+        const l = document.createElement('label');
+        const sel = myStatus !== 'none' && myShop === s.name;   // 移動中・到着後も、いたお店に印を付けておく
+        if (sel) l.className = 'sel';
+        const r = document.createElement('input');
+        r.type = 'radio'; r.name = 'shop'; r.checked = sel;
+        r.onchange = () => { shopEdit = false; setStatus(myStatus === 'none' ? 'shop' : myStatus, s.name); };   // 選び直しても、いまの状況（移動中など）は変えない
+        r.onclick = ev => { if (sel && myStatus === 'shop') { ev.preventDefault(); clearMe(); } };   // 選んでいるお店をもう一度押すと、選択を取り消す
+        const t = document.createElement('span'); t.textContent = s.name;
+        const c = document.createElement('span'); c.className = 'cnt who';
+        (whoAt[s.name] || []).sort(ja).forEach(n => { const p = document.createElement('span'); p.className = 'pchip'; p.textContent = n; c.appendChild(p); });
+        const ex = shopExtra(s.name);
+        const lu = ex.url;
+        if (lu) t.appendChild(linkEl(lu));
+        l.append(r, t, c);
+        if (!counts[s.name] && !sel) {   // 誰もいないお店は、まちがい追加を消せる
+          const d = document.createElement('span');
+          d.className = 'del'; d.innerHTML = ic('x'); d.title = '候補から消す';
+          d.onclick = ev => {
+            ev.preventDefault(); ev.stopPropagation();
+            if (confirm(`「${s.name}」を候補から消しますか？`)) backend.removeShop(roomId, s.key).catch(e => { roomErr.textContent = '消せませんでした：' + (e.message || e); });
+          };
+          l.appendChild(d);
+        }
+        box.appendChild(l);
+      });
+      box.scrollTop = top;
+      if (!list.length) box.innerHTML = `<div class="none-txt" style="padding:10px">${all.length ? '該当するお店がありません' : 'まだお店がありません'}</div>`;
+      const exact = !isUrl && all.some(s => norm(s.name) === qn);
+      renderSimilar('shopSimilar', q, all.map(s => s.name), name => addShop({ name }));
+      $('shopAddBtn').hidden = !q || exact;
+      $('shopAddBtn').innerHTML = ic('plus') + (isUrl ? 'このURLのお店を追加して選ぶ' : `「${esc(q)}」を追加して選ぶ`);
+    }
+
+    // 打った名前に近いお店（打ち間違い・ひらがな/カタカナ違い・少し長く書いたもの）が、すでにあれば「もしかして」と勧める。
+    // 打った文字を含むお店は、下の一覧にもう出ているので、ここには出さない
+    const simKey = s => kana(norm(s)).replace(/[・･、。\-ー〜~'’!！?？()（）「」『』]/g, '').replace(/店$/, '');
+    function editDist(a, b) {
+      const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+      for (let j = 1; j <= b.length; j++) d[0][j] = j;
+      for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+        d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      return d[a.length][b.length];
+    }
+    function renderSimilar(boxId, raw, names, onPick) {
+      const box = $(boxId);
+      box.innerHTML = '';
+      const k = simKey(raw);
+      const near = /^https?:/i.test(raw) || k.length < 2 ? [] : names.filter(n => {
+        const x = simKey(n);
+        if (!x || norm(n) === norm(raw)) return false;
+        if (x === k) return true;   // かな/カナ・「店」の有無・空白だけのちがい
+        if (x.includes(k)) return false;
+        return (k.includes(x) && x.length >= 3) || editDist(x, k) <= (k.length >= 7 ? 2 : k.length >= 3 ? 1 : 0);
+      }).slice(0, 3);
+      box.hidden = !near.length;
+      if (!near.length) return;
+      const lb = document.createElement('span'); lb.textContent = 'もしかして：'; box.appendChild(lb);
+      near.forEach(n => { const b = document.createElement('button'); b.type = 'button'; b.textContent = n; b.onclick = () => onPick(n); box.appendChild(b); });
+    }
+
+    async function addShop(info) {   // info: 検索結果やURLから取ったお店 { name, lat, lng, url }。なければ入力欄の名前だけで追加
+      if (!info) {
+        const raw = $('shopSearch').value.trim();
+        if (!raw) return;
+        if (/^https?:\/\//i.test(raw)) {
+          const m = parseMapsUrl(raw);
+          if (!m || m.error) { roomErr.textContent = (m && m.error) || 'URLを読み取れませんでした'; return; }
+          info = m;
+        } else info = { name: raw.replace(/\s+/g, ' ').slice(0, 20) };
+      }
+      const name = info.name.slice(0, 20), key = mapKey(name);
+      const existing = shopEntries().find(s => norm(s.name) === norm(name));
+      try {
+        if (!existing) await backend.addShop(roomId, key, name);
+        const k = existing ? existing.key : key;
+        if (info.url) await backend.setLink(roomId, 'shopUrl', k, info.url);
+      } catch (e) { roomErr.textContent = '追加できませんでした：' + (e.message || e); return; }
+      $('shopSearch').value = ''; hideSuggest('shopSug');
+      setStatus(myStatus === 'none' ? 'shop' : myStatus, existing ? existing.name : name);
+    }
+
+    // ---------- お店のリンクと、GoogleマップのURLの取り込み ----------
+    function safeUrl(u) { return typeof u === 'string' && /^https?:\/\//i.test(u) ? u : ''; }
+    function linkEl(url) {
+      const a = document.createElement('a');
+      a.className = 'lnk'; a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      a.title = 'お店のページを開く'; a.innerHTML = ic('link');
+      a.onclick = ev => ev.stopPropagation();
+      return a;
+    }
+    // お店のリンク（GoogleマップのURLで追加したお店だけ）
+    function shopExtra(name) {
+      const key = mapKey(name);
+      return { url: safeUrl(roomData.shopUrl && roomData.shopUrl[key]) };
+    }
+    // GoogleマップのURLからお店の名前・場所・ページを読み取る（短縮URLは中身が見えないので不可）
+    function parseMapsUrl(text) {
+      let u; try { u = new URL(text); } catch (e) { return { error: 'URLを読み取れませんでした' }; }
+      if (/(^|\.)goo\.gl$/.test(u.hostname)) return { error: '短縮URLは読み取れません。ブラウザでお店のページを開いて、アドレス欄の長いURLを貼ってください' };
+      if (!/(^|\.)google\.[a-z.]+$/.test(u.hostname)) return { error: 'GoogleマップのURLを貼ってください' };
+      const pm = u.pathname.match(/\/place\/([^/]+)/);
+      let name = '';
+      try { name = pm ? decodeURIComponent(pm[1].replace(/\+/g, ' ')) : ''; } catch (e) {}
+      if (!name) return { error: 'お店の名前が読み取れませんでした。お店のページのURLを貼ってください' };
+      const c = text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || text.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      const url = text.length <= 300 ? text : 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(name);
+      return { name: name.slice(0, 20), lat: c ? +c[1] : null, lng: c ? +c[2] : null, url };
+    }
+    function hideSuggest(listId) { const b = $(listId); b.hidden = true; b.innerHTML = ''; }
+    // 入力欄をタップ・入力すると、前に使ったお店・いつものお店を候補に出す
+    function setupSuggest(inputId, listId, onPick, listed, memoOf, regulars) {
+      const input = $(inputId), box = $(listId);
+      // 前に使ったお店・いつものお店（いまの一覧にないもの）を出す。通信は使わない。
+      // 一次会と二次会は別々：memoOf() はその欄の履歴、regulars はその欄の「いつものお店」
+      const addLocal = () => {
+        const raw = input.value.trim();
+        if (/^https?:/i.test(raw)) return;
+        const q = norm(raw), have = new Set(listed().map(norm));
+        // ひらがなで打ってもカタカナの店名に当たるようにして比べる
+        const kq = kana(q);
+        const hit = (n, alt) => !have.has(norm(n)) && (!kq || [n, ...(alt || [])].some(x => kana(norm(x)).includes(kq)));
+        // 前に使ったお店（新しい順）→ いつものお店 の順
+        const memo = Object.entries(memoOf()).filter(([n]) => hit(n)).sort((a, b) => b[1].at - a[1].at)
+          .map(([n, m]) => ({ name: n, url: safeUrl(m.url), label: '前に使ったお店' }));
+        const seen = new Set(memo.map(m => norm(m.name)));
+        const regular = regulars.filter(r => hit(r.name, r.alt) && !seen.has(norm(r.name)))
+          .map(r => ({ name: r.name.slice(0, 20), url: '', label: 'いつものお店' }));
+        [...memo, ...regular].slice(0, 8).forEach(m => {
+          const it = document.createElement('div'); it.className = 'item';
+          const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = m.name;
+          const sb = document.createElement('div'); sb.className = 'sb'; sb.textContent = m.label;
+          it.append(nm, sb);
+          it.onclick = () => onPick({ name: m.name, url: m.url });
+          box.appendChild(it);
+        });
+        box.hidden = !box.children.length;
+      };
+      input.addEventListener('focus', () => { if (!input.value.trim()) { hideSuggest(listId); addLocal(); } });
+      input.addEventListener('blur', () => setTimeout(() => { if (!input.value.trim()) hideSuggest(listId); }, 250));
+      input.addEventListener('input', () => { hideSuggest(listId); addLocal(); });
+    }
+
+    // 前に使ったお店を端末に覚えておく（名前・リンク）。次からは候補に出て、1タップで載せられる。
+    // 一次会のお店と二次会の候補は、別々に覚える（二次会の欄に、一次会のお店が出ないように）
+    let shopMemo = load('shops', {});    // 一次会：名前 → { url, at }
+    let afterMemo = load('afters', {});  // 二次会：名前 → { url, at }
+    function rememberInto(memo, names, urls) {
+      let changed = false;
+      Object.entries(names || {}).forEach(([k, name]) => {
+        const old = memo[name], url = safeUrl(urls && urls[k]);
+        if (old && old.url === url) return;
+        memo[name] = { url, at: Date.now() }; changed = true;
+      });
+      return changed ? Object.fromEntries(Object.entries(memo).sort((x, y) => y[1].at - x[1].at).slice(0, 40)) : null;
+    }
+    function rememberShops() {
+      const a = rememberInto(shopMemo, roomData.shops, roomData.shopUrl);
+      if (a) { shopMemo = a; save('shops', shopMemo); }
+      const b = rememberInto(afterMemo, roomData.afterShops, roomData.afterUrl);
+      if (b) { afterMemo = b; save('afters', afterMemo); }
+    }
+
+    // 「いっしょに行く人」のチェック一覧
+    function renderWith() {
+      if (!roomData) return;
+      const q = norm($('withSearch').value);
+      const names = allNames();
+      delete names[myKey()];
+      const people = roomData.people || {};
+      const gens = roomData.rosterGen || {};
+      renderGenChips('withGen', Object.keys(names), gens, renderWith);
+      const g = genFilter.withGen;
+      const list = Object.entries(names).filter(([k, n]) => (!q || norm(n).includes(q)) && (!g || gens[k] === g)).sort((a, b) => ja(a[1], b[1]));
+      const box = $('withList');
+      const top = box.scrollTop;
+      box.innerHTML = '';
+      list.forEach(([k, n]) => {
+        const l = document.createElement('label');
+        const on = withKeys.has(k);
+        if (on) l.className = 'sel';
+        const c = document.createElement('input');
+        c.type = 'checkbox'; c.checked = on;
+        c.onchange = () => toggleWith(k, c.checked);
+        const t = document.createElement('span'); t.textContent = n;
+        const p = people[k];
+        const s = document.createElement('span'); s.className = 'cnt';
+        s.textContent = !p ? '' : p.st === 'shop' ? (p.shop || 'お店') : p.st === 'moving' ? 'ロタへ移動中' : 'ロタ着';
+        l.append(c, t, s);
+        box.appendChild(l);
+      });
+      box.scrollTop = top;
+      if (!list.length) box.innerHTML = `<div class="none-txt" style="padding:10px">${Object.keys(names).length ? '該当する名前がありません' : 'ほかの人がまだいません'}</div>`;
+      $('withSummary').textContent = withKeys.size ? `（${withKeys.size}人を選択中）` : '';
+    }
+
+    // ---------- 画面の描画 ----------
+    function render() {
+      if (!roomData) return;
+      const people = roomData.people || {};
+      const members = Object.entries(people).map(([key, p]) => ({ key, ...p }));
+      const left = roomData.expiresAt - Date.now();
+      if (left <= 0) { finishRoom('今日のアフターは終了しました'); return; }
+      $('remain').innerHTML = ic('clock') + esc(fmtRemain(left));
+
+      // 自分の状況
+      $('hero').className = 'hero ' + myStatus;
+      $('heroName').textContent = myName;
+      $('heroPill').className = 'pill ' + myStatus;
+      $('heroPill').textContent = { none: '未選択', shop: 'お店', moving: '移動中', arrived: '到着' }[myStatus];
+      const more = withKeys.size && myStatus !== 'none' ? `・いっしょの${withKeys.size}人も反映` : '';
+      $('meStatus').textContent = { none: '', shop: `${myShop} にいます`, moving: myShop ? `${myShop} からロタへ` : 'ロタへ向かっています', arrived: 'ロタに着きました' }[myStatus] + more;
+      $('meStatus').hidden = !$('meStatus').textContent;
+      $('heroPill').hidden = myStatus !== 'none';   // 状況の文が出ているときは、印は重複なので出さない
+      [['qShop', 'shop', 'fork', 'お店にいる'], ['qMove', 'moving', 'walk', 'ロタへ向かう'], ['qArrive', 'arrived', 'flag', 'ロタに着いた']].forEach(([id, st, icon, label]) => {
+        const b = $(id);
+        b.className = 'qbtn ' + st + (myStatus === st ? ' on' : '') + (st === 'shop' && !myShop ? ' off' : '');
+        b.innerHTML = ic(icon) + `<span>${label}</span>`;
+      });
+      rememberShops();
+      renderShops();
+      renderWith();
+      $('withBlock').hidden = myStatus === 'none';
+      $('withTitle').textContent = myStatus === 'shop' ? 'このお店に連れてきた人を追加' : 'いっしょの人';
+
+      // みんなの状況
+      const by = { arrived: [], moving: [], shop: {} };
+      members.forEach(m => {
+        if (m.st === 'shop') (by.shop[m.shop || '（店名なし）'] = by.shop[m.shop || '（店名なし）'] || []).push(m);
+        else if (by[m.st]) by[m.st].push(m);
+      });
+      const chip = m => `<span class="chip${m.key === myKey() ? ' me' : ''}">${esc(m.name)}${m.key === myKey() ? '（自分）' : ''}</span>`;
+      const sec = (cls, icon, title, list) => `<div class="sec ${cls}"><h3><span class="t">${ic(icon)}${esc(title)}</span><span class="n">${list.length}人</span></h3><div class="chips">`
+        + (list.length ? list.map(chip).join('') : '<span class="none-txt">いません</span>') + '</div></div>';
+      let html = sec('arrived', 'flag', 'ロタ到着', by.arrived) + sec('moving', 'walk', 'ロタへ移動中', by.moving);
+      Object.keys(by.shop).sort(ja).forEach(s => { html += sec('', 'fork', s, by.shop[s]); });
+      // 出席者名簿にいて、まだお店を選んでいない人（状況ではなく、名簿との差から出す）
+      const waiting = Object.entries(roomData.roster || {}).filter(([k]) => !people[k]).map(([, n]) => n).sort(ja);
+      if (waiting.length) html += sec('', 'clock', 'まだ選んでいない', waiting.map(n => ({ key: '', name: n })));
+      $('board').innerHTML = html;
+      renderAfter();
+      const total = members.length + waiting.length, all = total > 0 && by.arrived.length === total;
+      $('summary').textContent = all ? '全員そろいました' : `ロタ到着 ${by.arrived.length} / ${total}人`;
+      $('summary').classList.toggle('ok', all);
+      $('badge3').hidden = !total; $('badge3').textContent = `${by.arrived.length}/${total}`; $('badge3').classList.toggle('ok', all);
+      $('rosterBtn').hidden = !hasApi() || !hasFirebase;
+    }
+
+    setInterval(() => { if (roomId && roomData) render(); }, 10000);
+
+    async function refreshRoster() {
+      $('rosterBtn').disabled = true;
+      try { await requestSync(); toast('名簿を更新しました'); }
+      catch (e) { roomErr.textContent = '名簿を更新できませんでした：' + (e.message || e); }
+      finally { $('rosterBtn').disabled = false; }
+    }
+
+    // ---------- 退出 ----------
+    function cleanupRoomView() {
+      if (unwatch) { unwatch(); unwatch = null; }
+      roomId = null; roomData = null; myStatus = 'none'; myShop = ''; withKeys = new Set();
+      show('home');
+    }
+    async function leaveRoom() {
+      try { await backend.removePerson(roomId, myKey()); } catch (e) {}
+      // 二次会の「行きたい」（ハート）も、この名前の分を消す。名前を変えたあとに、前の名前のハートが残らないように
+      const likes = (roomData && roomData.afterLikes) || {};
+      await Promise.all(Object.keys(likes).filter(sk => likes[sk] && likes[sk][myKey()])
+        .map(sk => backend.setLike(roomId, sk, myKey(), null).catch(() => {})));
+      cleanupRoomView();
+      myName = ''; remove('name'); remove('nameTyped'); remove('lastRoom');   // 次に開いたとき、名前を選び直せる
+      autoOpen = false;
+      $('openMsg').textContent = ''; $('openBtn').hidden = false; $('openBtn').textContent = '今日のアフターを開く';
+    }
+    // ボードから設定（ホーム画面）へ。名前も、ボード上の自分の状況も、そのまま残す
+    function openSettings() {
+      cleanupRoomView();
+      autoOpen = false;
+      $('openMsg').textContent = ''; $('openBtn').hidden = false; $('openBtn').textContent = 'アフターにもどる';
+      $('homeErr').textContent = '';
+      $('apiDetails').open = true;
+    }
+    function finishRoom(message) {
+      cleanupRoomView();
+      remove('lastRoom');
+      autoOpen = false;
+      $('openMsg').textContent = ''; $('openBtn').hidden = false; $('openBtn').textContent = '今日のアフターを開く';
+      $('homeErr').textContent = message;
+    }
+
+    // ============================================================
+    // 連携設定
+    // ============================================================
+    function saveApi() {
+      const url = $('apiUrl').value.trim();
+      if (!url) { $('homeErr').textContent = '出欠アプリのURLを入力してください'; return false; }
+      if (!/^https:\/\/script\.google\.com\//.test(url)) { $('homeErr').textContent = 'URLは https://script.google.com/ で始まるものを入れてください'; return false; }
+      api = { url }; save('api', api); $('homeErr').textContent = ''; return true;
+    }
+    function copyApiLink() {
+      if (!saveApi()) return;
+      const link = location.href.split('#')[0].split('?')[0] + '#u=' + encodeURIComponent(api.url);
+      const done = () => { $('apiLinkBtn').innerHTML = ic('check') + 'コピーしました'; setTimeout(() => { $('apiLinkBtn').textContent = 'メンバーに配るリンクをコピー'; }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => prompt('このリンクをコピーしてください', link));
+      else prompt('このリンクをコピーしてください', link);
+    }
+    // 配布リンク（#u=…）や、サークル出欠のボタン（#n=名前）で開いたら、設定を保存して、アドレスから消す
+    (function importApiFromLink() {
+      const h = new URLSearchParams(location.hash.replace(/^#/, ''));
+      let used = false;
+      if (h.get('u') && /^https:\/\/script\.google\.com\//.test(h.get('u'))) {
+        api = { url: h.get('u') }; save('api', api); used = true;
+      }
+      if (h.has('admin')) { save('admin', true); used = true; }   // 管理者（幹事）の端末だけ、設定を出す
+      if (h.has('k') || h.has('h')) used = true;   // 昔のリンクのキー（連携・お店検索）は使わない（アドレスからは消す）
+      // 名前：未登録の端末はそのまま登録。別の名前で登録済みなら、勝手に変えずに確認する
+      const n = (h.get('n') || '').replace(/\s+/g, ' ').trim().slice(0, 30);
+      if (n) {
+        used = true;
+        if (!myName || (myName !== n && confirm(`名前を「${myName}」から「${n}」に変更しますか？`))) { myName = n; save('name', myName); }
+      }
+      if (used) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
+    })();
+    // すでに開いているタブでリンクを踏んだとき（読み込み直しが起きない）も、設定を取り込む
+    window.addEventListener('hashchange', () => { if (/[#&](?:[unhk]=|admin)/.test(location.hash)) location.reload(); });
+
+    // ============================================================
+    // 起動
+    // ============================================================
+    if (api) $('apiUrl').value = api.url || '';
+    // 設定（出欠アプリのURLなど）は、管理者の端末にだけ出す。メンバーの画面には歯車もURL欄も出ない
+    const isAdmin = load('admin', false) === true;
+    $('settingsBtn').style.display = isAdmin ? '' : 'none';
+    $('setupCard').hidden = !isAdmin;
+    $('modeBadge').textContent = hasFirebase ? '' : 'お試し';
+    $('demoNotice').hidden = hasFirebase;
+    $('openBtn').onclick = () => { autoOpen = true; openToday(); };
+    $('nameOkBtn').onclick = nameOk;
+    $('nameCancelBtn').onclick = nameCancel;
+    $('nameSearch').oninput = renderNameList;
+    $('nameInput').oninput = () => { pickedName = ''; renderNameList(); };
+    $('qShop').onclick = () => quick('shop');
+    $('qMove').onclick = () => quick('moving');
+    $('qArrive').onclick = () => quick('arrived');
+    $('rosterBtn').onclick = refreshRoster;
+    $('shopSearch').oninput = renderShops;
+    $('shopSearch').onkeydown = e => { if (e.key === 'Enter' && !$('shopAddBtn').hidden) addShop(); };
+    // 追加ボタンの連打で二重に追加されないようにする
+    let busy = false;
+    const once = fn => async (...a) => { if (busy) return; busy = true; try { return await fn(...a); } finally { busy = false; } };
+    addShop = once(addShop); addAfter = once(addAfter);
+    $('shopAddBtn').onclick = () => addShop();
+    $('settingsBtn').onclick = openSettings;
+    $('sheetBg').onclick = () => { if (Date.now() - sheetOpenedAt > 400) closeSheet(); };   // 長押しを離した瞬間に閉じないように
+    (() => {   // 見出しの部分を下へ引く（または押す）と閉じる
+      const head = $('sheetHead'), sheet = $('sheet');
+      let y0 = null;
+      head.addEventListener('pointerdown', e => { y0 = e.clientY; head.setPointerCapture(e.pointerId); sheet.style.transition = 'none'; });
+      head.addEventListener('pointermove', e => { if (y0 !== null) sheet.style.transform = `translateY(${Math.max(0, e.clientY - y0)}px)`; });
+      const end = e => {
+        if (y0 === null) return;
+        const dy = e.clientY - y0; y0 = null;
+        sheet.style.transition = ''; sheet.style.transform = '';
+        if (dy > 60 || Math.abs(dy) < 6) closeSheet();
+      };
+      head.addEventListener('pointerup', end); head.addEventListener('pointercancel', end);
+    })();
+    $('heroName').onclick = renameClick;   // 名前の部分をタップすると、名前を選び直せる
+    $('shopChange').onclick = () => { shopEdit = true; renderShops(); $('shopChange').hidden = true; $('shopSearch').focus(); };
+    setupSuggest('shopSearch', 'shopSug', info => addShop(info), () => shopEntries().map(s => s.name), () => shopMemo, REGULAR_SHOPS);
+    setupSuggest('afterShop', 'afterSug', info => addAfter(info), () => afterEntries().map(s => s.name), () => afterMemo, []);   // 二次会には、一次会の履歴・いつものお店を出さない
+    $('withSearch').oninput = renderWith;
+    $('afterShopBtn').onclick = () => addAfter();
+    $('afterShop').oninput = renderAfter;
+    $('afterShop').onkeydown = e => { if (e.key === 'Enter') addAfter(); };
+    $('apiSaveBtn').onclick = () => { if (saveApi()) $('homeErr').textContent = '保存しました'; };
+    $('apiLinkBtn').onclick = copyApiLink;
+
+    // 思わぬエラーは、画面に出す（スマホでは原因が見えないため）
+    window.addEventListener('error', e => toast('エラー：' + (e.message || '') + (e.lineno ? '（' + e.lineno + '行目）' : ''), true, 10000));
+    window.addEventListener('unhandledrejection', e => toast('エラー：' + ((e.reason && e.reason.message) || e.reason || ''), true, 10000));
+
+    (async () => {
+      // 読み込み直し（引っ張って更新など）のとき：名前があり、さっきまで今日のボードにいたなら、
+      // 「ボードを開いています…」の画面を挟まず、見ていたタブのままボードを出す
+      const today = boardDay();
+      const todayRid = await ensureRoomId(today);
+      const resume = !!myName && !!todayRid && load('lastRoom', '') === todayRid;
+      if (resume) {
+        try { resumeTab = +sessionStorage.getItem(STORE_PREFIX + 'tab') || 0; } catch (e) {}
+        $('roomDate').textContent = today.label; $('remain').textContent = '読み込み中…';
+        show('room');
+      }
+      try { uid = await backend.init(); }
+      catch (e) { if (resume) show('home'); $('openMsg').textContent = ''; $('homeErr').textContent = 'サーバーに接続できませんでした：' + (e.message || e); return; }
+      if (resume) {
+        enterRoom(todayRid);
+        // 名簿が古ければ、裏で取り込み直す（画面は待たせない）
+        backend.getRoom(todayRid).then(room => {
+          if (hasFirebase && hasApi() && (!room || !room.rosterAt || Date.now() - room.rosterAt > ROSTER_STALE_MS)) return requestSync();
+        }).catch(() => {});
+      } else if (autoOpen) openToday();
+    })();
+  </script>
+</body>
+</html>
