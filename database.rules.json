@@ -16,6 +16,10 @@
           ".write": "auth != null",
           "$k": { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{1,3}$/)" }
         },
+        "bushitsu": {
+          ".write": "auth != null",
+          "$k": { ".validate": "newData.hasChildren(['name', 't']) && newData.child('name').isString() && newData.child('name').val().length <= 30 && newData.child('t').isNumber()" }
+        },
         "shops": {
           ".write": "auth != null",
           "$k": { ".validate": "newData.isString() && newData.val().length <= 20" }

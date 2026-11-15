@@ -155,6 +155,16 @@
 
     /* 一覧：1行ごとに角丸の枠。選んだ行は薄い青 */
     .gens { gap: 6px; }
+    .glance { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .glance button { display: block; width: auto; min-height: 0; margin: 0; padding: 8px 12px; text-align: left; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); }
+    .glance button:active { background: var(--surface-2); }
+    .glance .gh { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: 0.8rem; font-weight: 600; color: var(--text-sub); }
+    .glance .gh b { font-size: 1.3rem; font-weight: 800; color: var(--text); line-height: 1.1; }
+    .glance .gn { margin-top: 2px; font-size: 0.75rem; font-weight: 400; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 1.1em; }
+    .glance .g-rota b { color: var(--green); }
+    .glance .g-bu b { color: var(--blue); }
+    .bbtn { width: 100%; }
+    .bbtn.on { background: var(--blue-soft); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); }
     .sim { align-items: center; gap: 6px; }
     .sim span { font-size: 0.8rem; color: var(--text-muted); }
     .sim button { background: var(--blue-soft); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); border-radius: 999px; padding: 4px 12px; font-size: 0.9rem; font-weight: 600; width: auto; min-height: 0; margin: 0; }
@@ -257,6 +267,7 @@
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></symbol>
     <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></symbol>
     <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.8 0 5 2.2 5 5"/></symbol>
   </svg>
   <header>
@@ -316,6 +327,11 @@
         </div>
       </div>
 
+      <div class="glance" id="glance">
+        <button type="button" class="g-rota" data-tab="3"><div class="gh"><span>ロタ</span><b id="gRota">0</b></div><div class="gn" id="gRotaN"></div></button>
+        <button type="button" class="g-bu" data-tab="4"><div class="gh"><span>部室</span><b id="gBu">0</b></div><div class="gn" id="gBuN"></div></button>
+      </div>
+
       <div class="pane" id="pane1">
       <div class="card">
         <p class="card-title"><span class="t"><svg class="ic"><use href="#i-fork"/></svg>お店を選ぶ</span></p>
@@ -370,6 +386,13 @@
       </div>
       </div>
 
+      <div class="pane" id="pane4" hidden>
+      <div class="card">
+        <p class="card-title"><span class="t"><svg class="ic"><use href="#i-home"/></svg>部室</span><span class="card-title-count" id="buCount"></span></p>
+        <button id="buBtn" class="bbtn"></button>
+        <div id="buWho"></div>
+      </div>
+      </div>
 
     </section>
   </main>
@@ -379,6 +402,7 @@
     <button data-tab="1" class="on"><svg class="ic"><use href="#i-fork"/></svg><span>一次会</span></button>
     <button data-tab="2"><svg class="ic"><use href="#i-glass"/></svg><span>二次会<b class="badge" id="badge2" hidden></b></span></button>
     <button data-tab="3"><svg class="ic"><use href="#i-users"/></svg><span>みんなの状況<b class="badge" id="badge3" hidden></b></span></button>
+    <button data-tab="4"><svg class="ic"><use href="#i-home"/></svg><span>部室<b class="badge" id="badge4" hidden></b></span></button>
   </nav>
 
   <div class="sheet-bg" id="sheetBg"></div>
@@ -491,6 +515,8 @@
         return () => r.off('value', fn);
       },
       async setPeople(id, map) { await this.ref(id, 'people').update(map); },
+      // 部室にいる人（一次会・二次会の状況とは別。bushitsu/{名前のキー} = { name, t }）
+      async setBushitsu(id, key, rec) { const r = this.ref(id, 'bushitsu/' + key); if (rec) await r.set(rec); else await r.remove(); },
       async removePerson(id, key) { await this.ref(id, 'people/' + key).remove(); },
       // 二次会の候補と「行きたい」（ハート）。afterLikes/{候補のキー}/{人のキー} = その人の名前
       async addAfterShop(id, key, name) { await this.ref(id, 'afterShops/' + key).set(name); },
@@ -536,6 +562,12 @@
       async setPeople(id, map) {
         const all = this.read(); if (!all[id]) return;
         all[id].people = { ...(all[id].people || {}), ...map }; this.write(all);
+      },
+      async setBushitsu(id, key, rec) {
+        const all = this.read(); if (!all[id]) return;
+        all[id].bushitsu = all[id].bushitsu || {};
+        if (rec) all[id].bushitsu[key] = rec; else delete all[id].bushitsu[key];
+        this.write(all);
       },
       async removePerson(id, key) {
         const all = this.read();
@@ -620,11 +652,11 @@
     function setTab(n) {
       closeSheet();
       try { sessionStorage.setItem(STORE_PREFIX + 'tab', String(n)); } catch (e) {}   // 読み込み直しても、同じタブに戻れるように
-      [1, 2, 3].forEach(i => { $('pane' + i).hidden = i !== n; });
+      [1, 2, 3, 4].forEach(i => { $('pane' + i).hidden = i !== n; });
       document.querySelectorAll('#bnav button').forEach(b => b.classList.toggle('on', +b.dataset.tab === n));
       $('room').scrollTop = 0;
     }
-    document.querySelectorAll('#bnav button').forEach(b => { b.onclick = () => setTab(+b.dataset.tab); });
+    document.querySelectorAll('#bnav button, #glance button').forEach(b => { b.onclick = () => setTab(+b.dataset.tab); });
     function fmtRemain(ms) {
       if (ms <= 0) return '終了しました';
       const m = Math.ceil(ms / 60000);
@@ -1329,6 +1361,31 @@
       $('summary').classList.toggle('ok', all);
       $('badge3').hidden = !total; $('badge3').textContent = `${by.arrived.length}/${total}`; $('badge3').classList.toggle('ok', all);
       $('rosterBtn').hidden = !hasApi() || !hasFirebase;
+      renderBushitsu(by.arrived);
+    }
+
+    // ---------- 部室にいる人（一次会・二次会とは別の機能） ----------
+    function renderBushitsu(arrived) {
+      const bu = Object.entries(roomData.bushitsu || {}).map(([key, p]) => ({ key, ...p })).sort((a, b) => ja(a.name, b.name));
+      const mine = !!(roomData.bushitsu && roomData.bushitsu[myKey()]);
+      const names = list => list.length ? list.slice(0, 3).map(m => m.name).join('・') + (list.length > 3 ? `ほか${list.length - 3}人` : '') : '';
+      $('gRota').textContent = arrived.length; $('gRotaN').textContent = names(arrived);
+      $('gBu').textContent = bu.length; $('gBuN').textContent = names(bu);
+      $('buCount').textContent = bu.length ? `${bu.length}人` : '';
+      $('badge4').hidden = !bu.length; $('badge4').textContent = bu.length;
+      $('buBtn').className = 'bbtn' + (mine ? ' on' : '');
+      $('buBtn').innerHTML = ic('home') + (mine ? '部室を出た（押すと取り消し）' : '部室にいる');
+      $('buWho').innerHTML = '<div class="sec"><div class="chips">'
+        + (bu.length ? bu.map(m => `<span class="chip${m.key === myKey() ? ' me' : ''}">${esc(m.name)}${m.key === myKey() ? '（自分）' : ''}</span>`).join('') : '<span class="none-txt">いません</span>')
+        + '</div></div>';
+    }
+    async function toggleBushitsu() {
+      if (!roomId || !myName) return;
+      const mine = !!(roomData && roomData.bushitsu && roomData.bushitsu[myKey()]);
+      try {
+        await backend.setBushitsu(roomId, myKey(), mine ? null : { name: myName, t: Date.now() });
+        toast(mine ? '部室を出たと伝えました' : '部室にいると伝えました');
+      } catch (e) { roomErr.textContent = '送信に失敗しました：' + (e.message || e); }
     }
 
     setInterval(() => { if (roomId && roomData) render(); }, 10000);
@@ -1348,6 +1405,7 @@
     }
     async function leaveRoom() {
       try { await backend.removePerson(roomId, myKey()); } catch (e) {}
+      try { await backend.setBushitsu(roomId, myKey(), null); } catch (e) {}
       // 二次会の「行きたい」（ハート）も、この名前の分を消す。名前を変えたあとに、前の名前のハートが残らないように
       const likes = (roomData && roomData.afterLikes) || {};
       await Promise.all(Object.keys(likes).filter(sk => likes[sk] && likes[sk][myKey()])
@@ -1436,6 +1494,7 @@
     addShop = once(addShop); addAfter = once(addAfter);
     $('shopAddBtn').onclick = () => addShop();
     $('settingsBtn').onclick = openSettings;
+    $('buBtn').onclick = toggleBushitsu;
     $('sheetBg').onclick = () => { if (Date.now() - sheetOpenedAt > 400) closeSheet(); };   // 長押しを離した瞬間に閉じないように
     (() => {   // 見出しの部分を下へ引く（または押す）と閉じる
       const head = $('sheetHead'), sheet = $('sheet');
