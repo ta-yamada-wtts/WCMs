@@ -17,7 +17,7 @@
 ## 公開のしかた（無料）
 1. GitHub に `WCMs` リポジトリを作って push
 2. リポジトリの Settings → Pages → Branch を `main` / `(root)` にして Save
-3. `https://take-daigakusei.github.io/WCMs/` で開けるようになります
+3. `https://ta-yamada-wtts.github.io/WCMs/` で開けるようになります
 
 ## 使い方（飲み会の集合ボード）
 サークル後、班に分かれてお店へ → 高田馬場のロータリー（ロタ）に集合 → 二次会、という流れ用。**位置情報は使いません。**
@@ -54,7 +54,7 @@
 2. Authentication →「ログイン方法」→ **匿名** を有効化
 3. Realtime Database を作成 → 「ルール」に `database.rules.json` の中身を貼って公開
 4. プロジェクトの設定 → マイアプリ（Web）→ 表示される `firebaseConfig` を `index.html` の `FIREBASE_CONFIG` に貼る
-5. Authentication → 設定 → 承認済みドメインに `take-daigakusei.github.io` を追加
+5. Authentication → 設定 → 承認済みドメインに `ta-yamada-wtts.github.io` を追加
 
 ## 出欠アプリとの連携（最初に1回だけ）
 出席者の名前は、出欠アプリ（`../サークル出欠`）のサーバーが、ボード（Firebase）へ直接書き込みます。集合ボードは「今日の名簿を入れて」と合図を送るだけで、返ってくるのは結果だけです。**連携キーはありません**（リンクにも端末にも、漏れて困る値を置かない）。
@@ -62,7 +62,7 @@
 2. 出欠アプリの `app.js` の `BOARD_FIREBASE` に、Firebase の `databaseURL` と `apiKey` を書く（`index.html` の `FIREBASE_CONFIG` と同じ値）
 3. `clasp push` のあと、Apps Script エディタで `setupBoardSync` を実行（オーナーのみ）。外部通信の許可を求められたら許可する。実行ログに `boardSync: {"ok":true,…}` が出れば成功（出席者が0人の日は `noAttendees` と出る）
 4. 出欠アプリを**新しいバージョンとして再デプロイ**する（「デプロイを管理」→ 編集 → 新バージョン）
-5. 管理者の端末だけ、`https://take-daigakusei.github.io/WCMs/#admin` を一度開く（この端末に「設定」が出るようになる。メンバーの画面には設定ボタンもURL欄も出ない）。集合ボードの右上の設定ボタン →「出欠アプリの設定」に、出欠アプリのウェブアプリのURL（`…/exec`）を入れて保存
+5. 管理者の端末だけ、`https://ta-yamada-wtts.github.io/WCMs/#admin` を一度開く（この端末に「設定」が出るようになる。メンバーの画面には設定ボタンもURL欄も出ない）。集合ボードの右上の設定ボタン →「出欠アプリの設定」に、出欠アプリのウェブアプリのURL（`…/exec`）を入れて保存
 6. 同じ画面の「メンバーに配るリンクをコピー」を押し、グループLINEなどで配る。メンバーはそのリンクを**一度だけ**開けば設定が保存され、以後は普通に開くだけでよい
 - 配るリンクに入るのは、出欠アプリのURLだけ
 - 合図は誰でも送れるが、起きるのは「サーバーが正しい名簿を書き直す」ことだけ（1分に1回まで）。名簿は足すだけで、消さない
