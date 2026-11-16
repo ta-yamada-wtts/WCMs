@@ -722,7 +722,7 @@
     // 出欠アプリのサーバーに「今日の名簿をボードに入れて」と合図を送る。
     // 名前はサーバーがボード（Firebase）へ直接書き込む。こちらには結果しか返ってこないので、連携キーは要らない
     async function requestSync() {
-      if (!hasApi()) throw new Error('出欠アプリとの連携が設定されていません');
+      if (!hasApi()) throw new Error('この端末には、まだ設定が入っていません。幹事から配られたリンクを、一度開いてください。そのあと、もう一度開く（またはQRを読み取る）と、使えます。');
       let json;
       try {
         const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 10000);   // 出欠アプリが遅いときに、いつまでも待たない
@@ -822,6 +822,8 @@
         $('openMsg').textContent = '';
         $('openBtn').hidden = false; $('openBtn').textContent = 'もう一度開く';
         $('homeErr').textContent = e.message || String(e);
+        // 設定がまだ入っていない端末でQRを読んだとき：指示を10分間覚えておく（配られたリンクを開いたら、続きでその状況にする）
+        if (pendingDo && !hasApi()) save('pendingDo', { a: pendingDo, at: Date.now() });
       }
     }
 
@@ -1578,6 +1580,8 @@
       let used = false;
       if (h.get('u') && /^https:\/\/script\.google\.com\//.test(h.get('u'))) {
         api = { url: h.get('u') }; save('api', api); used = true;
+        const st = load('pendingDo', null); remove('pendingDo');   // さっきQRを読んで、設定がなくて止まっていたなら、その続きをする
+        if (st && Date.now() - st.at < 10 * 60000 && !pendingDo && ['bushitsu-in', 'bushitsu-go', 'bushitsu-out', 'bushitsu-toggle'].includes(st.a)) pendingDo = st.a;
       }
       if (['bushitsu-in', 'bushitsu-go', 'bushitsu-out', 'bushitsu-toggle'].includes(h.get('do'))) { pendingDo = h.get('do'); used = true; }
       if (h.has('admin')) { save('admin', true); used = true; }   // 管理者（幹事）の端末だけ、設定を出す
