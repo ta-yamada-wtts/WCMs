@@ -877,7 +877,7 @@
         box.appendChild(l);
       });
       box.hidden = !names.length;
-      $('nameHint').textContent = !typed ? '' : roster.includes(typed) ? '名簿にある名前です' : names.length ? '候補を押すか、このまま入力した名前で入れます' : '名簿に見つかりません。このまま入力した名前で入れます';
+      $('nameHint').textContent = !typed ? '' : roster.includes(typed) ? '名簿にある名前です' : names.length ? '候補を押すか、このまま入力した名前で入れます' : '今日の練習名簿に見つかりません。このまま入れます';
     }
     function nameOk() {
       const name = $('nameInput').value.replace(/\s+/g, ' ').trim();
