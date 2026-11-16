@@ -326,8 +326,8 @@
       <div class="card" id="nameCard" hidden>
         <h2>名前登録</h2>
         <div class="namerow">
-          <input id="familyInput" maxlength="14" placeholder="姓（例：山田）" autocomplete="off">
-          <input id="givenInput" maxlength="14" placeholder="名（例：太郎）" autocomplete="off">
+          <input id="familyInput" maxlength="14" placeholder="せい（例：やまだ）" autocomplete="off">
+          <input id="givenInput" maxlength="14" placeholder="めい（例：たろう）" autocomplete="off">
         </div>
         <div class="shoplist" id="nameList" hidden></div>
         <p class="hint" id="nameHint"></p>
@@ -911,10 +911,13 @@
       $('nameHint').textContent = !typed ? '' : others ? '同じ人なら、候補を押してください' : Object.values(roster).includes(typed) ? '名簿にある名前です' : Object.keys(roster).length ? '今日の練習名簿に見つかりません。このまま入れます' : '';
     }
     function nameOk() {
-      const family = $('familyInput').value.replace(/\s+/g, ''), given = $('givenInput').value.replace(/\s+/g, '');
-      if (!family) { $('homeErr').textContent = '姓を入力してください'; return; }
-      if (!given) { $('homeErr').textContent = '名を入力してください'; return; }
-      const name = family + ' ' + given;   // 全員「姓 名」の形にそろえる
+      // ひらがなのフルネーム（「やまだ たろう」）で登録する。カタカナ・半角は、ひらがなに直す
+      const hira = v => v.normalize('NFKC').replace(/\s+/g, '').replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+      const family = hira($('familyInput').value), given = hira($('givenInput').value);
+      if (!family) { $('homeErr').textContent = 'せいを入力してください'; return; }
+      if (!given) { $('homeErr').textContent = 'めいを入力してください'; return; }
+      if (!/^[ぁ-ゖー]+$/.test(family) || !/^[ぁ-ゖー]+$/.test(given)) { $('homeErr').textContent = 'ひらがなで入力してください（例：やまだ たろう）'; return; }
+      const name = family + ' ' + given;   // 全員「せい めい」の形にそろえる
       const gen = $('genInput').value.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/代/g, '').trim();
       if (!gen) { $('homeErr').textContent = '代を入力してください'; return; }
       if (!/^\d{1,3}$/.test(gen)) { $('homeErr').textContent = '代は数字で入力してください（例：65）'; return; }
@@ -1522,6 +1525,11 @@
       if (!roomData) return;
       if (roomData.expiresAt - Date.now() <= 0) { finishRoom('今日の分は終了しました'); return; }
       const all = currentPlaces(roomData);
+      // 表示は下の名前だけ。同じ下の名前の人がいるときは、その人たちはフルネームで出す
+      const givenOf = n => { const i = String(n).search(/\s/); return i < 0 ? String(n) : String(n).slice(i).trim(); };
+      const gcnt = {}, seenKeys = new Set();
+      Object.values(all).forEach(l => l.forEach(m => { if (seenKeys.has(m.key)) return; seenKeys.add(m.key); const g = givenOf(m.name); gcnt[g] = (gcnt[g] || 0) + 1; }));
+      const disp = m => gcnt[givenOf(m.name)] > 1 ? m.name : givenOf(m.name);
       // 代で絞る・並べ方を変える（絞ったあとの人数が出る）。代は、いまロタか部室にいる人の分だけ出す
       const gens = roomData.rosterGen || {};
       const gcount = {};
@@ -1534,7 +1542,7 @@
       gs.value = g;
       const sortMode = nowSort;
       $('nowSort').value = sortMode;
-      const sorter = { new: (a, b) => b.t - a.t || ja(a.name, b.name), name: (a, b) => ja(a.name, b.name), gen: (a, b) => (+gens[b.key] || 0) - (+gens[a.key] || 0) || ja(a.name, b.name) }[sortMode];
+      const sorter = { new: (a, b) => b.t - a.t || ja(a.name, b.name), name: (a, b) => ja(disp(a), disp(b)) || ja(a.name, b.name), gen: (a, b) => (+gens[b.key] || 0) - (+gens[a.key] || 0) || ja(a.name, b.name) }[sortMode];
       const pl = {};
       Object.keys(all).forEach(k => { pl[k] = all[k].filter(m => !g || gens[m.key] === g).sort(sorter); });
       const mine = myPlace(roomData);
@@ -1561,7 +1569,7 @@
       const none = '<div class="chips"><span class="none-txt">いません</span></div>';
       const build = anim => {
         const chips = (list, extra) => list.map(m => locked ? `<span class="chip mask${extra}">●●●</span>`
-          : `<span class="chip${m.key === myKey() ? ' me' : ''}${extra}${anim && isNew(m) ? ' new' : ''}">${esc(m.name)}<small>${ago(m.t)}</small></span>`).join('');
+          : `<span class="chip${m.key === myKey() ? ' me' : ''}${extra}${anim && isNew(m) ? ' new' : ''}">${esc(disp(m))}<small>${ago(m.t)}</small></span>`).join('');
         const card = (cls, icon, title, list, go) => `<div class="place ${cls}"><div class="ph"><span class="pt">${ic(icon)}${title}</span><span class="pc"><b class="pn${anim && prev && prev.counts[cls] !== list.length ? ' bump' : ''}">${list.length}</b><span class="pu">人</span></span></div>`
           + (list.length ? `<div class="chips">${chips(list, '')}</div>` : none)
           + (go && go.length ? `<div class="psub">${ic('walk')}向かっている ${go.length}人</div><div class="chips">${chips(go, ' go')}</div>` : '') + '</div>';
