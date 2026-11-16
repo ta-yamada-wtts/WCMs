@@ -89,6 +89,17 @@
     .place .chip { font-size: 0.67rem; padding: 4px 7px; }
     .place .chip small { margin-left: 4px; font-size: 0.55rem; color: var(--text-muted); }
     .place .chip.go { border-style: dashed; }
+    /* 状況が変わったときの、軽い動き（変わったところだけ。動きを減らす設定の端末では止める） */
+    @keyframes chipIn { from { opacity: 0; transform: translateY(-6px) scale(.9); } to { opacity: 1; transform: none; } }
+    @keyframes numBump { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+    @keyframes btnPop { 0% { transform: scale(.94); } 60% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    .place .chip.new { animation: chipIn .3s ease-out; }
+    .place .pn { display: inline-block; }
+    .place .pn.bump { animation: numBump .35s ease-out; }
+    #buHero .qbtn { transition: background .15s, border-color .15s, color .15s; }
+    #buHero .qbtn.pop { animation: btnPop .25s ease-out; }
+    .place, #buHero { transition: border-top-color .25s; }
+    @media (prefers-reduced-motion: reduce) { .place .chip.new, .place .pn.bump, #buHero .qbtn.pop { animation: none; } }
     #buHero { padding: 8px; }
     #buHero .hero-head { min-height: 0; }
     #buHero .hero-user { font-size: 0.9rem; }
@@ -888,7 +899,7 @@
     // ボード
     // ============================================================
     async function enterMode(id) {
-      roomId = id; roomData = null;
+      roomId = id; roomData = null; prevSeen = null;
       save('lastRoom', id);   // 読み込み直したとき、「開いています…」を挟まずにこの部屋へ戻る
       myStatus = 'none'; myShop = ''; withKeys = new Set();
       $('buDate').textContent = $('roomDate').textContent = boardDay().label;
@@ -1471,6 +1482,7 @@
     }
 
     // ---------- 「いま」の画面 ----------
+    let prevSeen = null;   // 前に描いたときの、人ごとの場所・人数・自分の場所（変わったところだけ動かすため）
     let nowSort = ['new', 'name', 'gen'].includes(load('nowSort', 'new')) ? load('nowSort', 'new') : 'new';   // 並べ方
     function renderBushitsu() {
       if (!roomData) return;
@@ -1493,20 +1505,34 @@
       Object.keys(all).forEach(k => { pl[k] = all[k].filter(m => !g || gens[m.key] === g).sort(sorter); });
       const mine = myPlace(roomData);
       const me = mine ? mine.place : 'none';
+      // 前回から変わったところを調べる（最初の1回と、絞り込みを変えた直後は動かさない）
+      const seenNow = { where: {}, g, me, counts: Object.fromEntries(Object.keys(pl).map(k => [k, pl[k].length])) };
+      Object.values(all).forEach(l => l.forEach(m => { seenNow.where[m.key] = m.place; }));
+      const last = prevSeen, prev = last && last.g === g ? last : null;
+      const isNew = m => !!prev && prev.where[m.key] !== m.place;
+      // 動きの途中で、すぐ次の更新が来ても（自分の操作は書き込みが2回に分かれる）、止まらないようにする
+      seenNow.popUntil = prev && prev.me !== me ? Date.now() + 300 : (last && last.popUntil) || 0;
+      prevSeen = seenNow;
       $('buName').textContent = myName;
       $('buMe').textContent = { none: '', bu: '部室にいます', bgo: '部室へ向かっています', go: 'ロタへ向かっています', rota: 'ロタにいます' }[me];
       $('buHero').className = 'hero ' + ({ bu: 'shop', bgo: 'moving', go: 'moving', rota: 'arrived' }[me] || '');
       [['qBuGo', 'bgo', 'gobu', '部室へ向かう', 'moving'], ['qBuIn', 'bu', 'home', '部室にいる', 'shop'], ['qGo', 'go', 'gorota', 'ロタへ向かう', 'moving'], ['qRota', 'rota', 'flag', 'ロタにいる', 'arrived']].forEach(([id, pk, icon, label, cls]) => {
         const b = $(id);
-        b.className = 'qbtn ' + cls + (me === pk ? ' on' : '');
+        b.className = 'qbtn ' + cls + (me === pk ? ' on' : '') + (me === pk && Date.now() < seenNow.popUntil ? ' pop' : '');
         b.innerHTML = ic(icon) + `<span>${label}</span>`;
       });
-      const chips = (list, extra) => list.map(m => `<span class="chip${m.key === myKey() ? ' me' : ''}${extra}">${esc(m.name)}<small>${ago(m.t)}</small></span>`).join('');
       const none = '<div class="chips"><span class="none-txt">いません</span></div>';
-      const card = (cls, icon, title, list, go) => `<div class="place ${cls}"><div class="ph"><span class="pt">${ic(icon)}${title}</span><span class="pc"><b class="pn">${list.length}</b><span class="pu">人</span></span></div>`
-        + (list.length ? `<div class="chips">${chips(list, '')}</div>` : none)
-        + (go && go.length ? `<div class="psub">${ic('walk')}向かっている ${go.length}人</div><div class="chips">${chips(go, ' go')}</div>` : '') + '</div>';
-      $('places').innerHTML = card('rota', 'flag', 'ロタ', pl.rota, pl.go) + card('bu', 'home', '部室', pl.bu, pl.bgo);
+      const build = anim => {
+        const chips = (list, extra) => list.map(m => `<span class="chip${m.key === myKey() ? ' me' : ''}${extra}${anim && isNew(m) ? ' new' : ''}">${esc(m.name)}<small>${ago(m.t)}</small></span>`).join('');
+        const card = (cls, icon, title, list, go) => `<div class="place ${cls}"><div class="ph"><span class="pt">${ic(icon)}${title}</span><span class="pc"><b class="pn${anim && prev && prev.counts[cls] !== list.length ? ' bump' : ''}">${list.length}</b><span class="pu">人</span></span></div>`
+          + (list.length ? `<div class="chips">${chips(list, '')}</div>` : none)
+          + (go && go.length ? `<div class="psub">${ic('walk')}向かっている ${go.length}人</div><div class="chips">${chips(go, ' go')}</div>` : '') + '</div>';
+        return card('rota', 'flag', 'ロタ', pl.rota, pl.go) + card('bu', 'home', '部室', pl.bu, pl.bgo);
+      };
+      const plain = build(false);
+      if (last && last.plain === plain) { seenNow.plain = plain; return; }   // 見た目が同じなら、描き直さない（動いている最中のものを止めない）
+      seenNow.plain = plain;
+      $('places').innerHTML = build(true);
     }
 
     setInterval(() => { if (roomId && roomData) renderBushitsu(); }, 10000);   // 「N分前」と時間切れを、時間とともに更新
