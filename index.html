@@ -866,26 +866,37 @@
     // 今日の部屋に名簿があるとき（USE_ROSTER）だけ、入力した文字に合う名前を候補に出す。候補を押すと、名前と代が入る
     function renderNameList() {
       if (!pending) return;
-      const roster = pending.room.roster || {};
+      const room = pending.room;
+      const roster = room.roster || {};
       const typed = $('nameInput').value.trim();
-      const q = kana(norm(typed));
-      const list = Object.entries(roster).filter(([, n]) => !q || kana(norm(n)).includes(q)).sort((a, b) => ja(a[1], b[1]));
+      // 候補：名簿の名前と、今日すでに登録した人の名前（同じ人が、別の書き方で二重に登録しないように）
+      const pool = new Map();   // 名前 → キー
+      Object.entries(roster).forEach(([k, n]) => pool.set(n, k));
+      Object.values(room.people || {}).concat(Object.values(room.bushitsu || {})).forEach(p => { if (p && p.name) pool.set(p.name, mapKey(p.name)); });
+      Object.keys(room.rosterGen || {}).forEach(k => { if (![...pool.values()].includes(k)) pool.set(k, k); });
+      const q = simKey(typed);
+      const list = [...pool.entries()].filter(([n]) => {
+        if (!typed) return n in Object.fromEntries(Object.values(roster).map(x => [x, 1]));   // 何も入れていないときは、名簿の人だけ
+        if (n === typed) return true;
+        const x = simKey(n);
+        return !!x && (x === q || x.includes(q) || q.includes(x) || editDist(x, q) <= (q.length >= 7 ? 2 : q.length >= 3 ? 1 : 0));
+      }).sort((a, b) => ja(a[0], b[0]));
       const box = $('nameList');
       box.innerHTML = '';
-      list.forEach(([k, n]) => {
+      list.forEach(([n, k]) => {
         const l = document.createElement('label');
         if (n === typed) l.className = 'sel';
         const r = document.createElement('input');
         r.type = 'radio'; r.name = 'who'; r.checked = n === typed;
-        r.onchange = () => { $('nameInput').value = n; const g = (pending.room.rosterGen || {})[k]; if (g && !$('genInput').value.trim()) $('genInput').value = g; renderNameList(); };
+        r.onchange = () => { $('nameInput').value = n; const g = (room.rosterGen || {})[k]; if (g && !$('genInput').value.trim()) $('genInput').value = g; renderNameList(); };
         const t = document.createElement('span'); t.textContent = n;
         l.append(r, t);
         box.appendChild(l);
       });
-      const has = Object.keys(roster).length > 0;
       box.hidden = !list.length;
-      $('nameHint').hidden = !has || !typed;
-      $('nameHint').textContent = !has || !typed ? '' : Object.values(roster).includes(typed) ? '名簿にある名前です' : list.length ? '候補を押すか、このまま入力した名前で入れます' : '今日の練習名簿に見つかりません。このまま入れます';
+      const others = list.filter(([n]) => n !== typed).length;
+      $('nameHint').hidden = !typed || (!others && !Object.keys(roster).length);
+      $('nameHint').textContent = !typed ? '' : others ? '同じ人なら、候補を押してください' : Object.values(roster).includes(typed) ? '名簿にある名前です' : Object.keys(roster).length ? '今日の練習名簿に見つかりません。このまま入れます' : '';
     }
     function nameOk() {
       const name = $('nameInput').value.replace(/\s+/g, ' ').trim();
