@@ -969,6 +969,7 @@
           action = cur && cur.place === 'bu' ? 'bushitsu-out' : 'bushitsu-in';
         }
         if (action === 'bushitsu-out') { if (await setPlace(null)) toast('部室を出たと伝えました'); }
+        else if (action === 'bushitsu-go') { if (await setPlace('bgo')) toast(PLACE_MSG.bgo); }
         else if (await setPlace('bu')) toast(PLACE_MSG.bu);
       } catch (e) { toast('送信に失敗しました：' + (e.message || e), true); }
     }
@@ -1527,8 +1528,7 @@
         .map(sk => backend.setLike(roomId, sk, myKey(), null).catch(() => {})));
       cleanupRoomView();
       myName = ''; remove('name'); remove('nameTyped'); remove('lastRoom');   // 次に開いたとき、名前を選び直せる
-      autoOpen = false;
-      $('openMsg').textContent = ''; $('openBtn').hidden = false; $('openBtn').textContent = '今日を開く';
+      autoOpen = true; openToday();   // そのまま、名前登録の画面へ
     }
     // ボードから設定（ホーム画面）へ。名前も、ボード上の自分の状況も、そのまま残す
     function openSettings() {
