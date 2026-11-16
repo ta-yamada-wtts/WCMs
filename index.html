@@ -89,6 +89,7 @@
     .place .chip { font-size: 1rem; padding: 6px 10px; }
     .place .chip small { margin-left: 6px; font-size: 0.72rem; color: var(--text-muted); }
     .place .chip.go { border-style: dashed; }
+    #buHero .quick { grid-template-columns: repeat(2, 1fr); }
     #bushitsu .hero { margin-top: auto; position: sticky; bottom: 0; z-index: 5; box-shadow: 0 0 0 var(--gap) var(--bg); }
     #openCard { background: none; border: none; padding: 8px 0; }
     #room .card > * + *, #room #withBlock > * + * { margin-top: 10px; }
@@ -413,6 +414,7 @@
           <div class="hero-sub" id="buMe"></div>
         </div>
         <div class="quick">
+          <button id="qBuGo" class="qbtn moving"></button>
           <button id="qBuIn" class="qbtn shop"></button>
           <button id="qGo" class="qbtn moving"></button>
           <button id="qRota" class="qbtn arrived"></button>
@@ -911,24 +913,30 @@
     // ---------- いまの場所：部室にいる(bu) / ロタへ向かう(go) / ロタにいる(rota)。1人1か所だけ ----------
     //  書き込み先：部室 = bushitsu/{キー} {name, st:'in', t}、ロタ = people/{キー} {name, st:'moving'|'arrived', t}
     //  時間切れは、表示の上だけで決める（データは書き換えない。どの端末でも同じ結果になる）
-    const BU_IN_MS = 3 * 3600000, ROTA_GO_MS = 30 * 60000, ROTA_IN_MS = 3 * 3600000;
+    const BU_GO_MS = 90 * 60000, BU_IN_MS = 3 * 3600000, ROTA_GO_MS = 30 * 60000, ROTA_IN_MS = 3 * 3600000;
     function currentPlaces(data, now = Date.now()) {
       const best = {};
       const take = (key, name, place, t) => { if (!best[key] || t > best[key].t) best[key] = { key, name, place, t }; };   // 万一2か所に残っていたら、新しいほう
       Object.entries((data && data.bushitsu) || {}).forEach(([k, b]) => {
-        if (b && (b.st === 'in' || b.st === 'going') && now - (b.t || 0) < BU_IN_MS) take(k, b.name, 'bu', b.t || 0);
+        if (!b) return;
+        let t = b.t || 0;
+        if (b.st === 'going') {   // 部室へ向かうは1時間半で、部室にいるになる（そこから3時間で外れる）
+          if (now - t < BU_GO_MS) { take(k, b.name, 'bgo', t); return; }
+          t += BU_GO_MS;
+        } else if (b.st !== 'in') return;
+        if (now - t < BU_IN_MS) take(k, b.name, 'bu', t);
       });
       Object.entries((data && data.people) || {}).forEach(([k, p]) => {
         if (!p) return;
         if (p.st === 'moving' && now - (p.t || 0) < ROTA_GO_MS) take(k, p.name, 'go', p.t || 0);
         if (p.st === 'arrived' && now - (p.t || 0) < ROTA_IN_MS) take(k, p.name, 'rota', p.t || 0);
       });
-      const out = { bu: [], go: [], rota: [] };
+      const out = { bu: [], bgo: [], go: [], rota: [] };
       Object.values(best).forEach(x => out[x.place].push(x));
       Object.values(out).forEach(l => l.sort((a, b) => b.t - a.t || ja(a.name, b.name)));   // 新しい順
       return out;
     }
-    const myPlace = data => { const o = currentPlaces(data), k = myKey(); for (const pl of ['bu', 'go', 'rota']) { const m = o[pl].find(x => x.key === k); if (m) return m; } return null; };
+    const myPlace = data => { const o = currentPlaces(data), k = myKey(); for (const pl of ['bu', 'bgo', 'go', 'rota']) { const m = o[pl].find(x => x.key === k); if (m) return m; } return null; };
     const ago = t => { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? 'いま' : m < 60 ? m + '分前' : Math.floor(m / 60) + '時間前'; };
 
     // 自分の場所を変える。もう片方（部室⇔ロタ）からは外す。null で取り消し
@@ -936,13 +944,13 @@
       if (!roomId || !myName) return false;
       const k = myKey(), t = Date.now();
       try {
-        if (place === 'bu') await Promise.all([backend.setBushitsu(roomId, k, { name: myName, st: 'in', t }), backend.removePerson(roomId, k)]);
+        if (place === 'bu' || place === 'bgo') await Promise.all([backend.setBushitsu(roomId, k, { name: myName, st: place === 'bu' ? 'in' : 'going', t }), backend.removePerson(roomId, k)]);
         else if (place === 'go' || place === 'rota') await Promise.all([backend.setPeople(roomId, { [k]: { name: myName, st: place === 'go' ? 'moving' : 'arrived', t } }), backend.setBushitsu(roomId, k, null)]);
         else await Promise.all([backend.removePerson(roomId, k), backend.setBushitsu(roomId, k, null)]);
         return true;
       } catch (e) { toast('送信に失敗しました：' + (e.message || e), true); return false; }
     }
-    const PLACE_MSG = { bu: '部室にいると伝えました', go: 'ロタへ向かうと伝えました', rota: 'ロタにいると伝えました' };
+    const PLACE_MSG = { bu: '部室にいると伝えました', bgo: '部室へ向かうと伝えました', go: 'ロタへ向かうと伝えました', rota: 'ロタにいると伝えました' };
     async function pressPlace(place) {
       const cur = myPlace(roomData);
       if (cur && cur.place === place) { if (await setPlace(null)) toast('取り消しました'); }   // いまの場所をもう一度押すと、取り消し
@@ -1467,9 +1475,9 @@
       const mine = myPlace(roomData);
       const me = mine ? mine.place : 'none';
       $('buName').textContent = myName;
-      $('buMe').textContent = { none: '', bu: '部室にいます', go: 'ロタへ向かっています', rota: 'ロタにいます' }[me];
-      $('buHero').className = 'hero ' + ({ bu: 'shop', go: 'moving', rota: 'arrived' }[me] || '');
-      [['qBuIn', 'bu', 'home', '部室にいる', 'shop'], ['qGo', 'go', 'walk', 'ロタへ向かう', 'moving'], ['qRota', 'rota', 'flag', 'ロタにいる', 'arrived']].forEach(([id, pk, icon, label, cls]) => {
+      $('buMe').textContent = { none: '', bu: '部室にいます', bgo: '部室へ向かっています', go: 'ロタへ向かっています', rota: 'ロタにいます' }[me];
+      $('buHero').className = 'hero ' + ({ bu: 'shop', bgo: 'moving', go: 'moving', rota: 'arrived' }[me] || '');
+      [['qBuGo', 'bgo', 'walk', '部室へ向かう', 'moving'], ['qBuIn', 'bu', 'home', '部室にいる', 'shop'], ['qGo', 'go', 'walk', 'ロタへ向かう', 'moving'], ['qRota', 'rota', 'flag', 'ロタにいる', 'arrived']].forEach(([id, pk, icon, label, cls]) => {
         const b = $(id);
         b.className = 'qbtn ' + cls + (me === pk ? ' on' : '');
         b.innerHTML = ic(icon) + `<span>${label}</span>`;
@@ -1479,7 +1487,7 @@
       const card = (cls, icon, title, list, go) => `<div class="place ${cls}"><div class="ph"><span class="pt">${ic(icon)}${title}</span><span class="pc"><b class="pn">${list.length}</b><span class="pu">人</span></span></div>`
         + (list.length ? `<div class="chips">${chips(list, '')}</div>` : none)
         + (go && go.length ? `<div class="psub">${ic('walk')}向かっている ${go.length}人</div><div class="chips">${chips(go, ' go')}</div>` : '') + '</div>';
-      $('places').innerHTML = card('rota', 'flag', 'ロタ', pl.rota, pl.go) + card('bu', 'home', '部室', pl.bu);
+      $('places').innerHTML = card('rota', 'flag', 'ロタ', pl.rota, pl.go) + card('bu', 'home', '部室', pl.bu, pl.bgo);
     }
 
     setInterval(() => { if (roomId && roomData) renderBushitsu(); }, 10000);   // 「N分前」と時間切れを、時間とともに更新
@@ -1609,6 +1617,7 @@
     addShop = once(addShop); addAfter = once(addAfter);
     $('shopAddBtn').onclick = () => addShop();
     $('settingsBtn').onclick = openSettings;
+    $('qBuGo').onclick = () => pressPlace('bgo');
     $('qBuIn').onclick = () => pressPlace('bu');
     $('qGo').onclick = () => pressPlace('go');
     $('qRota').onclick = () => pressPlace('rota');
