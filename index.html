@@ -941,6 +941,11 @@
     async function applyDo(action) {
       if (!roomId || !myName) return;
       try {
+        if (action === 'bushitsu-toggle') {   // 同じQRで、入る／出る：いま部室にいる人が読めば出る。それ以外は、いる
+          const room = await backend.getRoom(roomId);
+          const cur = room && room.bushitsu && room.bushitsu[myKey()];
+          action = cur && cur.st === 'in' ? 'bushitsu-out' : 'bushitsu-in';
+        }
         if (action === 'bushitsu-out') { await backend.setBushitsu(roomId, myKey(), null); toast('部室を出たと伝えました'); }
         else {
           const st = action === 'bushitsu-in' ? 'in' : 'going';
@@ -1563,7 +1568,7 @@
       if (h.get('u') && /^https:\/\/script\.google\.com\//.test(h.get('u'))) {
         api = { url: h.get('u') }; save('api', api); used = true;
       }
-      if (['bushitsu-in', 'bushitsu-go', 'bushitsu-out'].includes(h.get('do'))) { pendingDo = h.get('do'); used = true; }
+      if (['bushitsu-in', 'bushitsu-go', 'bushitsu-out', 'bushitsu-toggle'].includes(h.get('do'))) { pendingDo = h.get('do'); used = true; }
       if (h.has('admin')) { save('admin', true); used = true; }   // 管理者（幹事）の端末だけ、設定を出す
       if (h.has('k') || h.has('h')) used = true;   // 昔のリンクのキー（連携・お店検索）は使わない（アドレスからは消す）
       // 名前：未登録の端末はそのまま登録。別の名前で登録済みなら、勝手に変えずに確認する
@@ -1589,7 +1594,7 @@
     $('qrDetails').hidden = !isAdmin;
     if (isAdmin) {
       const base = location.href.split('#')[0].split('?')[0];
-      [['部室にいる', 'bushitsu-in'], ['部室を出た', 'bushitsu-out']].forEach(([label, act]) => {
+      [['部室（読むと、入る。部室にいる人が読むと、出る）', 'bushitsu-toggle']].forEach(([label, act]) => {
         const url = base + '#do=' + act;
         const wrap = document.createElement('div'); wrap.style.cssText = 'margin-top:12px';
         const t = document.createElement('div'); t.className = 'muted'; t.textContent = label;
