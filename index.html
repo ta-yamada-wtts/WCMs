@@ -95,6 +95,8 @@
     .place .chip { font-size: 0.67rem; padding: 4px 7px; }
     .place .chip small { margin-left: 4px; font-size: 0.55rem; color: var(--text-muted); }
     .place .chip.go { border-style: dashed; }
+    .namerow { display: flex; gap: 8px; }
+    .namerow input { flex: 1; min-width: 0; }
     .place .chip.mask { color: var(--text-muted); letter-spacing: .1em; }
     .lockmsg { font-size: 0.85rem; font-weight: 600; color: var(--amber); text-align: center; }
     /* 状況が変わったときの、軽い動き（変わったところだけ。動きを減らす設定の端末では止める） */
@@ -323,7 +325,10 @@
       <!-- 名前を選ぶ -->
       <div class="card" id="nameCard" hidden>
         <h2>名前登録</h2>
-        <input id="nameInput" maxlength="30" placeholder="名前（例：たけし）" autocomplete="off">
+        <div class="namerow">
+          <input id="familyInput" maxlength="14" placeholder="姓（例：山田）" autocomplete="off">
+          <input id="givenInput" maxlength="14" placeholder="名（例：太郎）" autocomplete="off">
+        </div>
         <div class="shoplist" id="nameList" hidden></div>
         <p class="hint" id="nameHint"></p>
         <input id="genInput" inputmode="numeric" maxlength="4" placeholder="何代（例：65）" autocomplete="off">
@@ -836,7 +841,7 @@
     let pending = null;      // { id, room }
     function showNamePicker(id, room) {
       pending = { id, room: room || {} };
-      $('nameInput').value = myName || '';
+      setNameFields(myName || '');
       $('genInput').value = load('gen', '');
       renderNameList();
       $('nameCard').hidden = false; $('openCard').hidden = true;
@@ -864,11 +869,18 @@
       });
     }
     // 今日の部屋に名簿があるとき（USE_ROSTER）だけ、入力した文字に合う名前を候補に出す。候補を押すと、名前と代が入る
+    // 名前は「姓 名」の形。入力欄は姓と名に分ける
+    const typedName = () => [$('familyInput').value.replace(/\s+/g, ''), $('givenInput').value.replace(/\s+/g, '')].filter(Boolean).join(' ');
+    function setNameFields(name) {
+      const i = name.search(/\s/);
+      $('familyInput').value = i < 0 ? name : name.slice(0, i);
+      $('givenInput').value = i < 0 ? '' : name.slice(i).trim();
+    }
     function renderNameList() {
       if (!pending) return;
       const room = pending.room;
       const roster = room.roster || {};
-      const typed = $('nameInput').value.trim();
+      const typed = typedName();
       // 候補：名簿の名前と、今日すでに登録した人の名前（同じ人が、別の書き方で二重に登録しないように）
       const pool = new Map();   // 名前 → キー
       Object.entries(roster).forEach(([k, n]) => pool.set(n, k));
@@ -888,7 +900,7 @@
         if (n === typed) l.className = 'sel';
         const r = document.createElement('input');
         r.type = 'radio'; r.name = 'who'; r.checked = n === typed;
-        r.onchange = () => { $('nameInput').value = n; const g = (room.rosterGen || {})[k]; if (g && !$('genInput').value.trim()) $('genInput').value = g; renderNameList(); };
+        r.onchange = () => { setNameFields(n); const g = (room.rosterGen || {})[k]; if (g && !$('genInput').value.trim()) $('genInput').value = g; renderNameList(); };
         const t = document.createElement('span'); t.textContent = n;
         l.append(r, t);
         box.appendChild(l);
@@ -899,8 +911,10 @@
       $('nameHint').textContent = !typed ? '' : others ? '同じ人なら、候補を押してください' : Object.values(roster).includes(typed) ? '名簿にある名前です' : Object.keys(roster).length ? '今日の練習名簿に見つかりません。このまま入れます' : '';
     }
     function nameOk() {
-      const name = $('nameInput').value.replace(/\s+/g, ' ').trim();
-      if (!name) { $('homeErr').textContent = '名前を入力してください'; return; }
+      const family = $('familyInput').value.replace(/\s+/g, ''), given = $('givenInput').value.replace(/\s+/g, '');
+      if (!family) { $('homeErr').textContent = '姓を入力してください'; return; }
+      if (!given) { $('homeErr').textContent = '名を入力してください'; return; }
+      const name = family + ' ' + given;   // 全員「姓 名」の形にそろえる
       const gen = $('genInput').value.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/代/g, '').trim();
       if (!gen) { $('homeErr').textContent = '代を入力してください'; return; }
       if (!/^\d{1,3}$/.test(gen)) { $('homeErr').textContent = '代は数字で入力してください（例：65）'; return; }
@@ -1683,7 +1697,7 @@
     $('openBtn').onclick = () => { autoOpen = true; openToday(); };
     $('nameOkBtn').onclick = nameOk;
     $('nameCancelBtn').onclick = nameCancel;
-        $('nameInput').oninput = renderNameList;
+        $('familyInput').oninput = renderNameList; $('givenInput').oninput = renderNameList;
     $('genInput').onkeydown = e => { if (e.key === 'Enter') nameOk(); };
     $('qShop').onclick = () => quick('shop');
     $('qMove').onclick = () => quick('moving');
