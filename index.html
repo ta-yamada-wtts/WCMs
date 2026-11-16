@@ -321,11 +321,10 @@
       <!-- 名前を選ぶ -->
       <div class="card" id="nameCard" hidden>
         <h2>名前登録</h2>
-        <p class="hint">名前を入力してください</p>
         <input id="nameInput" maxlength="30" placeholder="名前（例：たけし）" autocomplete="off">
         <div class="shoplist" id="nameList" hidden></div>
         <p class="hint" id="nameHint"></p>
-        <input id="genInput" inputmode="numeric" maxlength="4" placeholder="何代か（例：65）空でもOK" autocomplete="off">
+        <input id="genInput" inputmode="numeric" maxlength="4" placeholder="何代（例：65）" autocomplete="off">
         <button id="nameOkBtn">この名前で入る</button>
         <button id="nameCancelBtn" class="sub">やめる</button>
       </div>
@@ -890,7 +889,8 @@
       const name = $('nameInput').value.replace(/\s+/g, ' ').trim();
       if (!name) { $('homeErr').textContent = '名前を入力してください'; return; }
       const gen = $('genInput').value.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/代/g, '').trim();
-      if (gen && !/^\d{1,3}$/.test(gen)) { $('homeErr').textContent = '代は数字で入力してください（例：65）'; return; }
+      if (!gen) { $('homeErr').textContent = '代を入力してください'; return; }
+      if (!/^\d{1,3}$/.test(gen)) { $('homeErr').textContent = '代は数字で入力してください（例：65）'; return; }
       myName = name; save('name', myName); save('gen', gen);
       const id = pending.id;
       hideNamePicker();
