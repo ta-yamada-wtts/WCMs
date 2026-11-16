@@ -303,13 +303,11 @@
 
       <!-- 名前を選ぶ -->
       <div class="card" id="nameCard" hidden>
-        <h2>はじめに、あなたの名前を登録</h2>
-        <p class="section-label"><svg class="ic"><use href="#i-users"/></svg>今日の練習に出た人：名簿から選ぶ</p>
-        <input id="nameSearch" type="search" placeholder="名簿を検索" autocomplete="off">
-        <div class="chips gens" id="nameGen" hidden></div>
+        <h2>名前登録</h2>
+        <p class="hint">名前を入力してください。今日の練習に出た人は、入力すると候補が出ます。一度登録すると、この端末では次から自動で入れます。</p>
+        <input id="nameInput" maxlength="30" placeholder="名前を入力（例：たけし）" autocomplete="off">
         <div class="shoplist" id="nameList"></div>
-        <p class="section-label"><svg class="ic"><use href="#i-glass"/></svg>名簿にいない人：名前を入力</p>
-        <input id="nameInput" maxlength="30" placeholder="例：たけし" autocomplete="off">
+        <p class="hint" id="nameHint"></p>
         <button id="nameOkBtn">この名前で入る</button>
         <button id="nameCancelBtn" class="sub">やめる</button>
       </div>
@@ -830,14 +828,9 @@
 
     // ---------- 名前を選ぶ（名簿から。いない人は入力） ----------
     let pending = null;      // { id, room }
-    let pickedName = '';
-
     function showNamePicker(id, room) {
       pending = { id, room };
-      pickedName = '';
-      $('nameSearch').value = ''; $('nameInput').value = '';
-      if (myName && Object.values(room.roster || {}).includes(myName)) pickedName = myName;
-      else if (myName) $('nameInput').value = myName;
+      $('nameInput').value = myName || '';
       renderNameList();
       $('nameCard').hidden = false; $('openCard').hidden = true;
       $('homeErr').textContent = '';
@@ -846,8 +839,7 @@
       pending = null;
       $('nameCard').hidden = true; $('openCard').hidden = false;
     }
-    // 代の絞り込み（名簿に代の情報があるときだけ出す）。名前の検索と組み合わせて使える
-    const genFilter = { nameGen: '', withGen: '', nowGen: '' };
+    const genFilter = { withGen: '', nowGen: '' };
     function renderGenChips(boxId, keys, gens, redraw) {
       const box = $(boxId);
       const counts = {};
@@ -864,34 +856,34 @@
         box.appendChild(b);
       });
     }
+    // 入口は1つ：入力した文字で、今日の名簿から候補を出す。候補を押せばその名前、名簿になければ入力したまま登録できる
     function renderNameList() {
       if (!pending) return;
-      const q = norm($('nameSearch').value);
-      const gens = pending.room.rosterGen || {};
-      const entries = Object.entries(pending.room.roster || {});
-      renderGenChips('nameGen', entries.map(e => e[0]), gens, renderNameList);
-      const g = genFilter.nameGen;
-      const roster = entries.filter(([k]) => !g || gens[k] === g).map(e => e[1]).sort(ja);
-      const names = roster.filter(n => !q || norm(n).includes(q));
+      const typed = $('nameInput').value.trim();
+      const q = kana(norm(typed));
+      const roster = Object.values(pending.room.roster || {}).sort(ja);
+      const names = roster.filter(n => !q || kana(norm(n)).includes(q));
       const box = $('nameList');
       box.innerHTML = '';
       names.forEach(n => {
         const l = document.createElement('label');
-        if (pickedName === n) l.className = 'sel';
+        const on = n === typed;
+        if (on) l.className = 'sel';
         const r = document.createElement('input');
-        r.type = 'radio'; r.name = 'who'; r.checked = pickedName === n;
-        r.onchange = () => { pickedName = n; $('nameInput').value = ''; renderNameList(); };
+        r.type = 'radio'; r.name = 'who'; r.checked = on;
+        r.onchange = () => { $('nameInput').value = n; renderNameList(); };
         const t = document.createElement('span'); t.textContent = n;
         l.append(r, t);
         box.appendChild(l);
       });
-      if (!names.length) box.innerHTML = `<div class="none-txt" style="padding:10px">${roster.length ? '該当する名前がありません' : '出席者の名簿はありません。下に名前を入力してください'}</div>`;
+      box.hidden = !names.length;
+      $('nameHint').textContent = !typed ? '' : roster.includes(typed) ? '名簿にある名前です' : names.length ? '候補を押すか、このまま入力した名前で入れます' : '名簿に見つかりません。このまま入力した名前で入れます';
     }
     function nameOk() {
-      const typed = $('nameInput').value.trim();
-      const name = typed || pickedName;
-      if (!name) { $('homeErr').textContent = '名前を選ぶか、入力してください'; return; }
-      myName = name; save('name', myName); save('nameTyped', typed ? name : '');
+      const name = $('nameInput').value.replace(/\s+/g, ' ').trim();
+      if (!name) { $('homeErr').textContent = '名前を入力してください'; return; }
+      const inRoster = Object.values(pending.room.roster || {}).includes(name);
+      myName = name; save('name', myName); save('nameTyped', inRoster ? '' : name);
       const id = pending.id;
       hideNamePicker();
       enterMode(id);
@@ -1633,8 +1625,8 @@
     $('openBtn').onclick = () => { autoOpen = true; openToday(); };
     $('nameOkBtn').onclick = nameOk;
     $('nameCancelBtn').onclick = nameCancel;
-    $('nameSearch').oninput = renderNameList;
-    $('nameInput').oninput = () => { pickedName = ''; renderNameList(); };
+    $('nameInput').oninput = renderNameList;
+    $('nameInput').onkeydown = e => { if (e.key === 'Enter') nameOk(); };
     $('qShop').onclick = () => quick('shop');
     $('qMove').onclick = () => quick('moving');
     $('qArrive').onclick = () => quick('arrived');
