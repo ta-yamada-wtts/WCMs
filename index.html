@@ -305,9 +305,8 @@
       <div class="card" id="nameCard" hidden>
         <h2>名前登録</h2>
         <p class="hint">名前を入力してください</p>
-        <input id="nameInput" maxlength="30" placeholder="名前を入力（例：たけし）" autocomplete="off">
-        <div class="shoplist" id="nameList"></div>
-        <p class="hint" id="nameHint"></p>
+        <input id="nameInput" maxlength="30" placeholder="名前（例：たけし）" autocomplete="off">
+        <input id="genInput" inputmode="numeric" maxlength="4" placeholder="何代か（例：65）空でもOK" autocomplete="off">
         <button id="nameOkBtn">この名前で入る</button>
         <button id="nameCancelBtn" class="sub">やめる</button>
       </div>
@@ -322,12 +321,9 @@
 
       <div class="card" id="setupCard">
         <details id="apiDetails">
-          <summary class="muted">出欠アプリの設定（最初の1回だけ）</summary>
-          <label for="apiUrl">出欠アプリのURL</label>
-          <input id="apiUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
-          <button id="apiSaveBtn" class="sub">保存する</button>
+          <summary class="muted">メンバーに配るリンク</summary>
           <button id="apiLinkBtn" class="sub">メンバーに配るリンクをコピー</button>
-          <p class="muted">配るリンクに入るのは、出欠アプリのURLと、名簿を頼むための合言葉です。サークルの外には共有しないでください。メンバーは一度そのリンクを開けば、あとは普通に開くだけで使えます。</p>
+          <p class="muted">配るリンクには、部屋の合言葉が入っています。サークルの外には共有しないでください。メンバーは一度そのリンクを開けば、あとは普通に開くだけで使えます。</p>
         </details>
         <details id="qrDetails">
           <summary class="muted">部室に貼る印（QRコード）</summary>
@@ -399,7 +395,6 @@
       <div class="card">
         <p class="card-title"><span class="t"><svg class="ic"><use href="#i-users"/></svg>みんなの状況</span><span class="card-title-count" id="summary"></span></p>
         <div id="board"></div>
-        <button id="rosterBtn" class="sub small" hidden>出席者名簿を更新</button>
       </div>
       </div>
 
@@ -477,7 +472,6 @@
     // 一次会（お店を選ぶ・いっしょに行く人）とみんなの状況は、いまは画面に出さない（機能とデータは残してある）。出すときは true
     const SHOW_SHOPS = false;
     const STORE_PREFIX = 'wcms_';
-    const ROSTER_STALE_MS = 30 * 60000;   // 出席者名簿をこれより古ければ、開いたときに取り込み直す
     const DAY_START_HOUR = 4;             // ボードの1日は朝4時に切り替わる（深夜の二次会まで同じボード）
 
     // ---------- いつものお店（サークルでよく行くお店）----------
@@ -566,7 +560,7 @@
         const r = this.ref(id, 'afterLikes/' + shopKey + '/' + personKey);
         if (name) await r.set(name); else await r.remove();
       },
-      async setRoster(id, map, at) { await this.ref(id).update({ roster: map, rosterAt: at }); },
+      async setGen(id, key, g) { const r = this.ref(id, 'rosterGen/' + key); if (g) await r.set(g); else await r.remove(); },   // 自分で選んだ代
       async addShop(id, key, name) { await this.ref(id, 'shops/' + key).set(name); },
       async removeShop(id, key) { await this.ref(id, 'shops/' + key).remove(); await this.ref(id, 'shopMin/' + key).remove(); await this.ref(id, 'shopUrl/' + key).remove(); await this.ref(id, 'hpShops/' + key).remove(); },
       async setLink(id, kind, key, url) { await this.ref(id, kind + '/' + key).set(url); },   // kind: 'shopUrl' | 'afterUrl'
@@ -633,7 +627,12 @@
         if (name) likes[shopKey][personKey] = name; else delete likes[shopKey][personKey];
         this.write(all);
       },
-      async setRoster(id, map, at) { const all = this.read(); if (all[id]) { all[id].roster = map; all[id].rosterAt = at; this.write(all); } },
+      async setGen(id, key, g) {
+        const all = this.read(); if (!all[id]) return;
+        all[id].rosterGen = all[id].rosterGen || {};
+        if (g) all[id].rosterGen[key] = g; else delete all[id].rosterGen[key];
+        this.write(all);
+      },
       async addShop(id, key, name) {
         const all = this.read(); if (!all[id]) return;
         all[id].shops = all[id].shops || {}; all[id].shops[key] = name; this.write(all);
@@ -708,46 +707,18 @@
     }
 
     // ============================================================
-    // 出欠アプリから出席者を取り込む
+    // 部屋の合言葉（配布リンクに入っていて、端末に保存される）
+    // 今日の部屋の名前は、日付と合言葉から計算する。合言葉を知らない人は、部屋の名前を当てられない
     // ============================================================
-    let api = load('api', null);   // { url }
-    let joinKey = load('join', '');   // 出欠アプリに名簿を頼むときの合言葉（配布リンクに入っている）
-    if (api && api.key) { api = { url: api.url }; save('api', api); }   // 昔の連携キーが残っていたら捨てる
-    remove('hp');   // 以前のお店検索（ホットペッパー）のキーが端末に残っていたら消す
-    const hasApi = () => !!(api && api.url);
+    remove('hp'); remove('api'); remove('join');   // 以前のお店検索・出欠アプリ連携のキーが端末に残っていたら消す
 
-    // 出欠アプリのサーバーに「今日の名簿をボードに入れて」と合図を送る。
-    // 名前はサーバーがボード（Firebase）へ直接書き込む。こちらには結果しか返ってこないので、連携キーは要らない
-    async function requestSync() {
-      if (!hasApi()) throw new Error('この端末には、まだ設定が入っていません。幹事から配られたリンクを、一度開いてください。そのあと、もう一度開く（またはQRを読み取る）と、使えます。');
-      if (!joinKey) throw new Error('この端末の設定が古くなっています。幹事から配られた新しいリンクを、一度開いてください。');
-      let json;
-      try {
-        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 10000);   // 出欠アプリが遅いときに、いつまでも待たない
-        try {
-          const res = await fetch(api.url + (api.url.includes('?') ? '&' : '?') + 'api=boardSync&s=' + encodeURIComponent(joinKey), { signal: ctl.signal });
-          json = await res.json();
-        } finally { clearTimeout(timer); }
-      } catch (e) {
-        throw new Error('出欠アプリにつながりませんでした。電波の良い所でもう一度開くか、設定の出欠アプリのURLを確かめてください。');
-      }
-      // 今日のボードの名前（日付＋サーバーだけが知る合言葉）。日付だけでは当てられないようにしてある
-      if (typeof json.key === 'string' && /^[0-9a-f-]{32,100}$/.test(json.key)) save('roomSecret', json.key);   // 一度受け取れば、以後は出欠アプリがなくても今日のボードの名前を計算できる
-      if (typeof json.room === 'string' && /^\d{8}_[0-9a-f]{16,64}$/.test(json.room)) save('roomKey', { day: boardDay().id, key: json.room });
-      if (!json.ok && json.error === 'forbidden') throw new Error('合言葉が合いません。幹事から配られた新しいリンクを、一度開いてください。');
-      if (!json.ok && json.error === 'noAttendees') { const err = new Error('noAttendees'); err.code = 'noAttendees'; throw err; }
-      if (!json.ok) throw new Error({
-        noAttendees: '今日の出席者がまだいません。出欠アプリで出席（〇）を付けるか、練習の記録が済んでから、もう一度開いてください。',
-        notSetup: '出欠アプリ側で、アフターとの連携がまだ設定されていません。',
-      }[json.error] || '出欠アプリから名簿を取り込めませんでした');
-    }
-    // 今日のボードの名前。連携がなければ日付、連携があれば、出欠アプリのサーバーが教えてくれた名前（まだ知らなければ null）
+    // 今日の部屋の名前（まだ計算していなければ null）。Firebase を使わないお試しモードは日付
     function knownRoomId(day) {
-      if (!(hasFirebase && hasApi())) return day.id;
+      if (!hasFirebase) return day.id;
       const k = load('roomKey', null);
       return (k && k.day === day.id && k.key) ? k.key : null;
     }
-    // 受け取った合言葉から、今日のボードの名前を自分で計算する（出欠アプリのサーバーと同じ HMAC-SHA256。出欠アプリに頼らず開ける）
+    // 合言葉から、今日の部屋の名前を自分で計算する（HMAC-SHA256）
     async function computeRoomId(day) {
       const secret = load('roomSecret', '');
       if (!secret || !(window.crypto && crypto.subtle)) return null;
@@ -761,45 +732,22 @@
       } catch (e) { return null; }
     }
     async function ensureRoomId(day) { return knownRoomId(day) || await computeRoomId(day); }
-    // お試しモード用の見本のボード（出欠アプリのサーバーは Firebase にしか書き込めないため）
-    const demoRoom = day => ({
-      createdAt: Date.now(), expiresAt: day.expiresAt, rosterAt: Date.now(),
-      roster: toMap(['たけし', 'あやか', 'けんた', 'みお']),
-      rosterGen: { 'たけし': '63', 'あやか': '64', 'けんた': '64', 'みお': '65' },
-      shops: toMap(['サイゼリヤ', '鳥貴族', '和民']),
-    });
+    // お試しモード用の見本の部屋
+    const demoRoom = day => ({ createdAt: Date.now(), expiresAt: day.expiresAt });
 
     // ============================================================
     // 今日のボードを開く（なければ自動で作る）
     // ============================================================
     // 今日の部屋（ロタ・部室・二次会が同じ部屋）を取る。なければ作る
     async function obtainRoom(day) {
-      let rid = await ensureRoomId(day);
-      if (!rid) {   // この端末がまだ合言葉を知らない（初めて・データを消した）ときだけ、出欠アプリに聞く
-        try { await requestSync(); } catch (e) { if (e.code !== 'noAttendees') throw e; }
-        rid = await ensureRoomId(day) || day.id;
-      }
+      const rid = await ensureRoomId(day);
+      if (!rid) throw new Error('この端末には、まだ設定が入っていません。幹事から配られたリンクを、一度開いてください。そのあと、もう一度開く（またはQRを読み取る）と、使えます。');
       let room = await backend.getRoom(rid);
-      const stale = !room || !room.rosterAt || Date.now() - room.rosterAt > ROSTER_STALE_MS;
-      if (hasFirebase && hasApi() && stale) {
-        if (room) {
-          requestSync().catch(() => {});   // ボードがあるなら、名簿の取り込みは裏で。待たずに開く（届けば画面が自動で更新される）
-        } else {
-          try { await requestSync(); rid = knownRoomId(day) || rid; room = await backend.getRoom(rid); }
-          catch (e) {
-            // 出席者がまだいない日（練習のない日・記録前）や、出欠アプリが遅い・止まっているときも、名簿なしでボードを始める。名前を入力して入れる
-            const keyKnown = !!load('roomSecret', '') || e.code === 'noAttendees';
-            if (!keyKnown) throw e;
-            await backend.createRoom(rid, { createdAt: Date.now(), expiresAt: day.expiresAt }); room = await backend.getRoom(rid);
-          }
-        }
+      if (!room) {
+        try { await backend.createRoom(rid, hasFirebase ? { createdAt: Date.now(), expiresAt: day.expiresAt } : demoRoom(day)); } catch (e) {}   // 同時に作った人がいても、先に作られたほうが残る
+        room = await backend.getRoom(rid);
       }
-      if (!room && !hasFirebase) {
-        room = demoRoom(day);
-        await backend.createRoom(rid, room);
-      }
-      if (!room) throw new Error(hasApi() ? '今日の部屋を作れませんでした。少し待ってから、もう一度開いてください。'
-        : '今日の部屋はまだ始まっていません。サークル出欠との連携が入ったリンクから開いてください。');
+      if (!room) throw new Error('今日の部屋を作れませんでした。少し待ってから、もう一度開いてください。');
       return { rid, room };
     }
 
@@ -814,24 +762,24 @@
 
         const { rid, room } = await obtainRoom(day);
 
-        // 一度名前を登録した端末は、名簿にいない日（アフターから参加）でも、そのまま自分として入る
+        // 一度名前を登録した端末は、そのまま自分として入る
         if (myName) await enterMode(rid);
-        else showNamePicker(rid, room);
+        else showNamePicker(rid);
       } catch (e) {
         $('openMsg').textContent = '';
         $('openBtn').hidden = false; $('openBtn').textContent = 'もう一度開く';
         $('homeErr').textContent = e.message || String(e);
         // 設定がまだ入っていない端末でQRを読んだとき：指示を10分間覚えておく（配られたリンクを開いたら、続きでその状況にする）
-        if (pendingDo && !hasApi()) save('pendingDo', { a: pendingDo, at: Date.now() });
+        if (pendingDo && hasFirebase && !load('roomSecret', '')) save('pendingDo', { a: pendingDo, at: Date.now() });
       }
     }
 
-    // ---------- 名前を選ぶ（名簿から。いない人は入力） ----------
-    let pending = null;      // { id, room }
-    function showNamePicker(id, room) {
-      pending = { id, room };
+    // ---------- 名前登録（名前と、何代か。端末に覚えておく） ----------
+    let pending = null;      // { id }
+    function showNamePicker(id) {
+      pending = { id };
       $('nameInput').value = myName || '';
-      renderNameList();
+      $('genInput').value = load('gen', '');
       $('nameCard').hidden = false; $('openCard').hidden = true;
       $('homeErr').textContent = '';
     }
@@ -856,34 +804,12 @@
         box.appendChild(b);
       });
     }
-    // 入口は1つ：入力した文字で、今日の名簿から候補を出す。候補を押せばその名前、名簿になければ入力したまま登録できる
-    function renderNameList() {
-      if (!pending) return;
-      const typed = $('nameInput').value.trim();
-      const q = kana(norm(typed));
-      const roster = Object.values(pending.room.roster || {}).sort(ja);
-      const names = roster.filter(n => !q || kana(norm(n)).includes(q));
-      const box = $('nameList');
-      box.innerHTML = '';
-      names.forEach(n => {
-        const l = document.createElement('label');
-        const on = n === typed;
-        if (on) l.className = 'sel';
-        const r = document.createElement('input');
-        r.type = 'radio'; r.name = 'who'; r.checked = on;
-        r.onchange = () => { $('nameInput').value = n; renderNameList(); };
-        const t = document.createElement('span'); t.textContent = n;
-        l.append(r, t);
-        box.appendChild(l);
-      });
-      box.hidden = !names.length;
-      $('nameHint').textContent = !typed ? '' : roster.includes(typed) ? '名簿にある名前です' : names.length ? '候補を押すか、このまま入力した名前で入れます' : '今日の練習名簿に見つかりません。このまま入れます';
-    }
     function nameOk() {
       const name = $('nameInput').value.replace(/\s+/g, ' ').trim();
       if (!name) { $('homeErr').textContent = '名前を入力してください'; return; }
-      const inRoster = Object.values(pending.room.roster || {}).includes(name);
-      myName = name; save('name', myName); save('nameTyped', inRoster ? '' : name);
+      const gen = $('genInput').value.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/代/g, '').trim();
+      if (gen && !/^\d{1,3}$/.test(gen)) { $('homeErr').textContent = '代は数字で入力してください（例：65）'; return; }
+      myName = name; save('name', myName); save('gen', gen);
       const id = pending.id;
       hideNamePicker();
       enterMode(id);
@@ -907,6 +833,7 @@
       $('shopSearch').value = ''; $('withSearch').value = '';
       setTab(startTab); startTab = 0;
       unwatch = backend.watchRoom(id, onRoomUpdate);
+      syncMyGen();
       if (pendingDo) { const a = pendingDo; pendingDo = null; applyDo(a); }   // QR・ショートカットで開いたときは、その状況にする
       // 保険：数秒たっても中身が届かないときは、取りに行く（それでもだめなら理由を出す）
       setTimeout(async () => {
@@ -914,6 +841,13 @@
         try { onRoomUpdate(await backend.getRoom(id)); }
         catch (e) { toast('読み込めませんでした。電波の良い所で開き直してください（' + (e.message || e) + '）', true, 10000); }
       }, 4000);
+    }
+
+    // 自分で登録した代を、今日の部屋に書く（代の絞り込みに使う）
+    function syncMyGen() {
+      const g = load('gen', '');
+      if (!roomId || !myName || !/^\d{1,3}$/.test(g)) return;
+      backend.setGen(roomId, myKey(), g).catch(() => {});
     }
 
     // ---------- いまの場所：部室にいる(bu) / ロタへ向かう(go) / ロタにいる(rota)。1人1か所だけ ----------
@@ -1469,7 +1403,6 @@
       $('summary').textContent = all ? '全員そろいました' : `ロタ到着 ${by.arrived.length} / ${total}人`;
       $('summary').classList.toggle('ok', all);
       $('badge3').hidden = !total; $('badge3').textContent = `${by.arrived.length}/${total}`; $('badge3').classList.toggle('ok', all);
-      $('rosterBtn').hidden = !hasApi() || !hasFirebase;
       renderBushitsu();
     }
 
@@ -1514,13 +1447,6 @@
 
     setInterval(() => { if (roomId && roomData) renderBushitsu(); }, 10000);   // 「N分前」と時間切れを、時間とともに更新
 
-    async function refreshRoster() {
-      $('rosterBtn').disabled = true;
-      try { await requestSync(); toast('名簿を更新しました'); }
-      catch (e) { roomErr.textContent = '名簿を更新できませんでした：' + (e.message || e); }
-      finally { $('rosterBtn').disabled = false; }
-    }
-
     // ---------- 退出 ----------
     function cleanupRoomView() {
       if (unwatch) { unwatch(); unwatch = null; }
@@ -1530,6 +1456,7 @@
     async function leaveRoom() {
       try { await backend.removePerson(roomId, myKey()); } catch (e) {}
       try { await backend.setBushitsu(roomId, myKey(), null); } catch (e) {}
+      try { await backend.setGen(roomId, myKey(), null); } catch (e) {}
       // 二次会の「行きたい」（ハート）も、この名前の分を消す。名前を変えたあとに、前の名前のハートが残らないように
       const likes = (roomData && roomData.afterLikes) || {};
       await Promise.all(Object.keys(likes).filter(sk => likes[sk] && likes[sk][myKey()])
@@ -1556,18 +1483,15 @@
     }
 
     // ============================================================
-    // 連携設定
+    // メンバーに配るリンク（部屋の合言葉が入る）
     // ============================================================
-    function saveApi() {
-      const url = $('apiUrl').value.trim();
-      if (!url) { $('homeErr').textContent = '出欠アプリのURLを入力してください'; return false; }
-      if (!/^https:\/\/script\.google\.com\//.test(url)) { $('homeErr').textContent = 'URLは https://script.google.com/ で始まるものを入れてください'; return false; }
-      api = { url }; save('api', api); $('homeErr').textContent = ''; return true;
-    }
     function copyApiLink() {
-      if (!saveApi()) return;
-      if (!joinKey) { $('homeErr').textContent = '合言葉が入っていません。合言葉の入った管理者用リンクで、この端末を開き直してください。'; return; }
-      const link = location.href.split('#')[0].split('?')[0] + '#u=' + encodeURIComponent(api.url) + '&s=' + encodeURIComponent(joinKey);
+      let secret = load('roomSecret', '');
+      if (!secret) {   // まだ合言葉がなければ、新しく作る
+        secret = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+        save('roomSecret', secret); remove('roomKey');
+      }
+      const link = location.href.split('#')[0].split('?')[0] + '#r=' + secret;
       const done = () => { $('apiLinkBtn').innerHTML = ic('check') + 'コピーしました'; setTimeout(() => { $('apiLinkBtn').textContent = 'メンバーに配るリンクをコピー'; }, 2000); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => prompt('このリンクをコピーしてください', link));
       else prompt('このリンクをコピーしてください', link);
@@ -1577,15 +1501,14 @@
     (function importApiFromLink() {
       const h = new URLSearchParams(location.hash.replace(/^#/, ''));
       let used = false;
-      if (h.get('u') && /^https:\/\/script\.google\.com\//.test(h.get('u'))) {
-        api = { url: h.get('u') }; save('api', api); used = true;
+      if (h.has('u') || h.has('s') || h.has('k') || h.has('h')) used = true;   // 昔のリンクの、出欠アプリのURL・キーは、もう使わない（アドレスからは消す）
+      if (/^[0-9a-f-]{32,100}$/.test(h.get('r') || '')) {   // 部屋の合言葉
+        save('roomSecret', h.get('r')); remove('roomKey'); used = true;
         const st = load('pendingDo', null); remove('pendingDo');   // さっきQRを読んで、設定がなくて止まっていたなら、その続きをする
         if (st && Date.now() - st.at < 10 * 60000 && !pendingDo && ['bushitsu-in', 'bushitsu-go', 'bushitsu-out', 'bushitsu-toggle'].includes(st.a)) pendingDo = st.a;
       }
       if (['bushitsu-in', 'bushitsu-go', 'bushitsu-out', 'bushitsu-toggle'].includes(h.get('do'))) { pendingDo = h.get('do'); used = true; }
-      if (/^[A-Za-z0-9_-]{16,64}$/.test(h.get('s') || '')) { joinKey = h.get('s'); save('join', joinKey); used = true; }
       if (h.has('admin')) { save('admin', true); used = true; }   // 管理者（幹事）の端末だけ、設定を出す
-      if (h.has('k') || h.has('h')) used = true;   // 昔のリンクのキー（連携・お店検索）は使わない（アドレスからは消す）
       // 名前：未登録の端末はそのまま登録。別の名前で登録済みなら、勝手に変えずに確認する
       const n = (h.get('n') || '').replace(/\s+/g, ' ').trim().slice(0, 30);
       if (n) {
@@ -1595,12 +1518,11 @@
       if (used) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
     })();
     // すでに開いているタブでリンクを踏んだとき（読み込み直しが起きない）も、設定を取り込む
-    window.addEventListener('hashchange', () => { if (/[#&](?:[unhks]=|admin|do=)/.test(location.hash)) location.reload(); });
+    window.addEventListener('hashchange', () => { if (/[#&](?:[unhksr]=|admin|do=)/.test(location.hash)) location.reload(); });
 
     // ============================================================
     // 起動
     // ============================================================
-    if (api) $('apiUrl').value = api.url || '';
     // 設定（出欠アプリのURLなど）は、管理者の端末にだけ出す。メンバーの画面には歯車もURL欄も出ない
     const isAdmin = load('admin', false) === true;
     $('settingsBtn').style.display = isAdmin ? '' : 'none';
@@ -1625,12 +1547,10 @@
     $('openBtn').onclick = () => { autoOpen = true; openToday(); };
     $('nameOkBtn').onclick = nameOk;
     $('nameCancelBtn').onclick = nameCancel;
-    $('nameInput').oninput = renderNameList;
-    $('nameInput').onkeydown = e => { if (e.key === 'Enter') nameOk(); };
+        $('genInput').onkeydown = e => { if (e.key === 'Enter') nameOk(); };
     $('qShop').onclick = () => quick('shop');
     $('qMove').onclick = () => quick('moving');
     $('qArrive').onclick = () => quick('arrived');
-    $('rosterBtn').onclick = refreshRoster;
     $('shopSearch').oninput = renderShops;
     $('shopSearch').onkeydown = e => { if (e.key === 'Enter' && !$('shopAddBtn').hidden) addShop(); };
     // 追加ボタンの連打で二重に追加されないようにする
@@ -1669,7 +1589,6 @@
     $('afterShopBtn').onclick = () => addAfter();
     $('afterShop').oninput = renderAfter;
     $('afterShop').onkeydown = e => { if (e.key === 'Enter') addAfter(); };
-    $('apiSaveBtn').onclick = () => { if (saveApi()) $('homeErr').textContent = '保存しました'; };
     $('apiLinkBtn').onclick = copyApiLink;
 
     // 思わぬエラーは、画面に出す（スマホでは原因が見えないため）
@@ -1692,10 +1611,6 @@
       catch (e) { show('home'); $('openMsg').textContent = ''; $('homeErr').textContent = 'サーバーに接続できませんでした：' + (e.message || e); return; }
       if (resume) {
         enterMode(todayRid);
-        // 名簿が古ければ、裏で取り込み直す（画面は待たせない）
-        backend.getRoom(todayRid).then(room => {
-          if (hasFirebase && hasApi() && (!room || !room.rosterAt || Date.now() - room.rosterAt > ROSTER_STALE_MS)) return requestSync();
-        }).catch(() => {});
       } else {
         autoOpen = true; openToday();
       }
