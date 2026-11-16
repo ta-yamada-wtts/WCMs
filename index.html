@@ -328,7 +328,7 @@
           <input id="apiUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
           <button id="apiSaveBtn" class="sub">保存する</button>
           <button id="apiLinkBtn" class="sub">メンバーに配るリンクをコピー</button>
-          <p class="muted">配るリンクに入るのは、出欠アプリのURLだけです（キーの類は入りません）。メンバーは一度そのリンクを開けば、あとは普通に開くだけで使えます。</p>
+          <p class="muted">配るリンクに入るのは、出欠アプリのURLと、名簿を頼むための合言葉です。サークルの外には共有しないでください。メンバーは一度そのリンクを開けば、あとは普通に開くだけで使えます。</p>
         </details>
         <details id="qrDetails">
           <summary class="muted">部室に貼る印（QRコード）</summary>
@@ -715,6 +715,7 @@
     // 出欠アプリから出席者を取り込む
     // ============================================================
     let api = load('api', null);   // { url }
+    let joinKey = load('join', '');   // 出欠アプリに名簿を頼むときの合言葉（配布リンクに入っている）
     if (api && api.key) { api = { url: api.url }; save('api', api); }   // 昔の連携キーが残っていたら捨てる
     remove('hp');   // 以前のお店検索（ホットペッパー）のキーが端末に残っていたら消す
     const hasApi = () => !!(api && api.url);
@@ -723,11 +724,12 @@
     // 名前はサーバーがボード（Firebase）へ直接書き込む。こちらには結果しか返ってこないので、連携キーは要らない
     async function requestSync() {
       if (!hasApi()) throw new Error('この端末には、まだ設定が入っていません。幹事から配られたリンクを、一度開いてください。そのあと、もう一度開く（またはQRを読み取る）と、使えます。');
+      if (!joinKey) throw new Error('この端末の設定が古くなっています。幹事から配られた新しいリンクを、一度開いてください。');
       let json;
       try {
         const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 10000);   // 出欠アプリが遅いときに、いつまでも待たない
         try {
-          const res = await fetch(api.url + (api.url.includes('?') ? '&' : '?') + 'api=boardSync', { signal: ctl.signal });
+          const res = await fetch(api.url + (api.url.includes('?') ? '&' : '?') + 'api=boardSync&s=' + encodeURIComponent(joinKey), { signal: ctl.signal });
           json = await res.json();
         } finally { clearTimeout(timer); }
       } catch (e) {
@@ -736,6 +738,7 @@
       // 今日のボードの名前（日付＋サーバーだけが知る合言葉）。日付だけでは当てられないようにしてある
       if (typeof json.key === 'string' && /^[0-9a-f-]{32,100}$/.test(json.key)) save('roomSecret', json.key);   // 一度受け取れば、以後は出欠アプリがなくても今日のボードの名前を計算できる
       if (typeof json.room === 'string' && /^\d{8}_[0-9a-f]{16,64}$/.test(json.room)) save('roomKey', { day: boardDay().id, key: json.room });
+      if (!json.ok && json.error === 'forbidden') throw new Error('合言葉が合いません。幹事から配られた新しいリンクを、一度開いてください。');
       if (!json.ok && json.error === 'noAttendees') { const err = new Error('noAttendees'); err.code = 'noAttendees'; throw err; }
       if (!json.ok) throw new Error({
         noAttendees: '今日の出席者がまだいません。出欠アプリで出席（〇）を付けるか、練習の記録が済んでから、もう一度開いてください。',
@@ -1568,7 +1571,8 @@
     }
     function copyApiLink() {
       if (!saveApi()) return;
-      const link = location.href.split('#')[0].split('?')[0] + '#u=' + encodeURIComponent(api.url);
+      if (!joinKey) { $('homeErr').textContent = '合言葉が入っていません。合言葉の入った管理者用リンクで、この端末を開き直してください。'; return; }
+      const link = location.href.split('#')[0].split('?')[0] + '#u=' + encodeURIComponent(api.url) + '&s=' + encodeURIComponent(joinKey);
       const done = () => { $('apiLinkBtn').innerHTML = ic('check') + 'コピーしました'; setTimeout(() => { $('apiLinkBtn').textContent = 'メンバーに配るリンクをコピー'; }, 2000); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => prompt('このリンクをコピーしてください', link));
       else prompt('このリンクをコピーしてください', link);
@@ -1584,6 +1588,7 @@
         if (st && Date.now() - st.at < 10 * 60000 && !pendingDo && ['bushitsu-in', 'bushitsu-go', 'bushitsu-out', 'bushitsu-toggle'].includes(st.a)) pendingDo = st.a;
       }
       if (['bushitsu-in', 'bushitsu-go', 'bushitsu-out', 'bushitsu-toggle'].includes(h.get('do'))) { pendingDo = h.get('do'); used = true; }
+      if (/^[A-Za-z0-9_-]{16,64}$/.test(h.get('s') || '')) { joinKey = h.get('s'); save('join', joinKey); used = true; }
       if (h.has('admin')) { save('admin', true); used = true; }   // 管理者（幹事）の端末だけ、設定を出す
       if (h.has('k') || h.has('h')) used = true;   // 昔のリンクのキー（連携・お店検索）は使わない（アドレスからは消す）
       // 名前：未登録の端末はそのまま登録。別の名前で登録済みなら、勝手に変えずに確認する
@@ -1595,7 +1600,7 @@
       if (used) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
     })();
     // すでに開いているタブでリンクを踏んだとき（読み込み直しが起きない）も、設定を取り込む
-    window.addEventListener('hashchange', () => { if (/[#&](?:[unhk]=|admin|do=)/.test(location.hash)) location.reload(); });
+    window.addEventListener('hashchange', () => { if (/[#&](?:[unhks]=|admin|do=)/.test(location.hash)) location.reload(); });
 
     // ============================================================
     // 起動
