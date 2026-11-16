@@ -96,9 +96,8 @@
     #buHero .qbtn { min-height: 46px; padding: 4px 2px; gap: 1px; font-size: 0.66rem; line-height: 1.2; }
     #buHero .qbtn .ic { width: 20px; height: 20px; }
     #buHero > * + * { margin-top: 6px; }
-    .nowbar { display: flex; flex-direction: column; gap: 6px; }
-    .nowbar .chips { gap: 6px; }
-    .nowbar button { width: auto; min-height: 0; padding: 4px 10px; font-size: 0.8rem; margin: 0; }
+    .nowbar { display: flex; gap: 8px; }
+    .nowbar select { flex: none; width: auto; min-height: 0; padding: 5px 8px; font-size: 0.85rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-mid); border-radius: var(--radius-sm); }
     #bushitsu .hero { margin-top: auto; position: sticky; bottom: 0; z-index: 5; box-shadow: 0 0 0 var(--gap) var(--bg); }
     #openCard { background: none; border: none; padding: 8px 0; }
     #room .card > * + *, #room #withBlock > * + * { margin-top: 10px; }
@@ -418,8 +417,8 @@
       </div>
 
       <div class="nowbar">
-        <div class="chips gens" id="nowGen" hidden></div>
-        <div class="chips gens" id="nowSort"></div>
+        <select id="nowGen" aria-label="代で絞る" hidden></select>
+        <select id="nowSort" aria-label="並べ方"><option value="new">新しい順</option><option value="name">名前順</option><option value="gen">代順</option></select>
       </div>
       <div class="places" id="places"></div>
 
@@ -1488,20 +1487,21 @@
       if (!roomData) return;
       if (roomData.expiresAt - Date.now() <= 0) { finishRoom('今日の分は終了しました'); return; }
       const all = currentPlaces(roomData);
-      // 代で絞る・並べ方を変える（人数も、絞ったあとの人数）
+      // 代で絞る・並べ方を変える（絞ったあとの人数が出る）。代は、いまロタか部室にいる人の分だけ出す
       const gens = roomData.rosterGen || {};
-      renderGenChips('nowGen', [...new Set([...Object.keys(roomData.roster || {}), ...Object.keys(roomData.people || {}), ...Object.keys(roomData.bushitsu || {})])], gens, renderBushitsu);
+      const gcount = {};
+      Object.values(all).forEach(l => l.forEach(m => { const x = gens[m.key]; if (x) gcount[x] = (gcount[x] || 0) + 1; }));
+      if (genFilter.nowGen && !gcount[genFilter.nowGen]) genFilter.nowGen = '';
       const g = genFilter.nowGen;
+      const gs = $('nowGen'), glist = Object.keys(gcount).sort((x, y) => y - x);
+      gs.hidden = !glist.length;
+      gs.innerHTML = '<option value="">全員</option>' + glist.map(x => `<option value="${esc(x)}">${esc(x)}代（${gcount[x]}）</option>`).join('');
+      gs.value = g;
       const sortMode = nowSort;
+      $('nowSort').value = sortMode;
       const sorter = { new: (a, b) => b.t - a.t || ja(a.name, b.name), name: (a, b) => ja(a.name, b.name), gen: (a, b) => (+gens[b.key] || 0) - (+gens[a.key] || 0) || ja(a.name, b.name) }[sortMode];
       const pl = {};
       Object.keys(all).forEach(k => { pl[k] = all[k].filter(m => !g || gens[m.key] === g).sort(sorter); });
-      const sb = $('nowSort'); sb.innerHTML = '';
-      [['new', '新しい順'], ['name', '名前順'], ['gen', '代順']].forEach(([v, label]) => {
-        const b = document.createElement('button'); b.type = 'button'; b.className = 'sub' + (sortMode === v ? ' on' : ''); b.textContent = label;
-        b.onclick = () => { nowSort = v; save('nowSort', v); renderBushitsu(); };
-        sb.appendChild(b);
-      });
       const mine = myPlace(roomData);
       const me = mine ? mine.place : 'none';
       $('buName').textContent = myName;
@@ -1649,6 +1649,8 @@
     $('settingsBtn').onclick = openSettings;
     $('qBuGo').onclick = () => pressPlace('bgo');
     $('qBuIn').onclick = () => pressPlace('bu');
+    $('nowGen').onchange = () => { genFilter.nowGen = $('nowGen').value; renderBushitsu(); };
+    $('nowSort').onchange = () => { nowSort = $('nowSort').value; save('nowSort', nowSort); renderBushitsu(); };
     $('qGo').onclick = () => pressPlace('go');
     $('qRota').onclick = () => pressPlace('rota');
     $('buName').onclick = () => { if (confirm('名前を選び直しますか？')) leaveRoom(); };
