@@ -306,6 +306,8 @@
         <h2>名前登録</h2>
         <p class="hint">名前を入力してください</p>
         <input id="nameInput" maxlength="30" placeholder="名前（例：たけし）" autocomplete="off">
+        <div class="shoplist" id="nameList" hidden></div>
+        <p class="hint" id="nameHint"></p>
         <input id="genInput" inputmode="numeric" maxlength="4" placeholder="何代か（例：65）空でもOK" autocomplete="off">
         <button id="nameOkBtn">この名前で入る</button>
         <button id="nameCancelBtn" class="sub">やめる</button>
@@ -322,6 +324,11 @@
       <div class="card" id="setupCard">
         <details id="apiDetails">
           <summary class="muted">メンバーに配るリンク</summary>
+          <div id="apiBox" hidden>
+            <label for="apiUrl">出欠アプリのURL</label>
+            <input id="apiUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+            <button id="apiSaveBtn" class="sub">保存する</button>
+          </div>
           <button id="apiLinkBtn" class="sub">メンバーに配るリンクをコピー</button>
           <p class="muted">配るリンクには、部屋の合言葉が入っています。サークルの外には共有しないでください。メンバーは一度そのリンクを開けば、あとは普通に開くだけで使えます。</p>
         </details>
@@ -471,6 +478,10 @@
 
     // 一次会（お店を選ぶ・いっしょに行く人）とみんなの状況は、いまは画面に出さない（機能とデータは残してある）。出すときは true
     const SHOW_SHOPS = false;
+    // 出欠アプリの名簿をボードに取り込む機能。いまは使わない（名前と代は、本人が入力して端末に覚える）。
+    // 使うときは true にして、設定画面で出欠アプリのURLを入れ、「メンバーに配るリンク」を配り直す（README 参照）
+    const USE_ROSTER = false;
+    const ROSTER_STALE_MS = 30 * 60000;   // 名簿をこれより古ければ、開いたときに取り込み直す
     const STORE_PREFIX = 'wcms_';
     const DAY_START_HOUR = 4;             // ボードの1日は朝4時に切り替わる（深夜の二次会まで同じボード）
 
@@ -710,7 +721,34 @@
     // 部屋の合言葉（配布リンクに入っていて、端末に保存される）
     // 今日の部屋の名前は、日付と合言葉から計算する。合言葉を知らない人は、部屋の名前を当てられない
     // ============================================================
-    remove('hp'); remove('api'); remove('join');   // 以前のお店検索・出欠アプリ連携のキーが端末に残っていたら消す
+    remove('hp');   // 以前のお店検索（ホットペッパー）のキーが端末に残っていたら消す
+    let api = load('api', null);   // { url } 出欠アプリのURL（USE_ROSTER のときだけ使う）
+    let joinKey = load('join', '');   // 出欠アプリに名簿を頼むときの合言葉（配布リンクに入っている）
+    const hasApi = () => !!(api && api.url);
+
+    // 出欠アプリのサーバーに「今日の名簿をボードに入れて」と合図を送る（USE_ROSTER のときだけ）。
+    // 名前はサーバーがボード（Firebase）へ直接書き込む。こちらには結果しか返ってこない
+    async function requestSync() {
+      if (!hasApi()) throw new Error('出欠アプリのURLが入っていません。');
+      if (!joinKey) throw new Error('この端末の設定が古くなっています。幹事から配られた新しいリンクを、一度開いてください。');
+      let json;
+      try {
+        const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 10000);   // 出欠アプリが遅いときに、いつまでも待たない
+        try {
+          const res = await fetch(api.url + (api.url.includes('?') ? '&' : '?') + 'api=boardSync&s=' + encodeURIComponent(joinKey), { signal: ctl.signal });
+          json = await res.json();
+        } finally { clearTimeout(timer); }
+      } catch (e) {
+        throw new Error('出欠アプリにつながりませんでした。電波の良い所でもう一度開くか、設定の出欠アプリのURLを確かめてください。');
+      }
+      if (!json.ok && json.error === 'forbidden') throw new Error('合言葉が合いません。幹事から配られた新しいリンクを、一度開いてください。');
+      if (!json.ok) throw new Error('出欠アプリから名簿を取り込めませんでした');
+    }
+    // 名簿が古ければ、裏で取り込み直す（画面は待たせない）。使わない設定のときは何もしない
+    function maybeSyncRoster(room) {
+      if (!(USE_ROSTER && hasFirebase && hasApi())) return;
+      if (!room || !room.rosterAt || Date.now() - room.rosterAt > ROSTER_STALE_MS) requestSync().catch(() => {});
+    }
 
     // 今日の部屋の名前（まだ計算していなければ null）。Firebase を使わないお試しモードは日付
     function knownRoomId(day) {
@@ -748,6 +786,7 @@
         room = await backend.getRoom(rid);
       }
       if (!room) throw new Error('今日の部屋を作れませんでした。少し待ってから、もう一度開いてください。');
+      maybeSyncRoster(room);
       return { rid, room };
     }
 
@@ -764,7 +803,7 @@
 
         // 一度名前を登録した端末は、そのまま自分として入る
         if (myName) await enterMode(rid);
-        else showNamePicker(rid);
+        else showNamePicker(rid, room);
       } catch (e) {
         $('openMsg').textContent = '';
         $('openBtn').hidden = false; $('openBtn').textContent = 'もう一度開く';
@@ -775,11 +814,12 @@
     }
 
     // ---------- 名前登録（名前と、何代か。端末に覚えておく） ----------
-    let pending = null;      // { id }
-    function showNamePicker(id) {
-      pending = { id };
+    let pending = null;      // { id, room }
+    function showNamePicker(id, room) {
+      pending = { id, room: room || {} };
       $('nameInput').value = myName || '';
       $('genInput').value = load('gen', '');
+      renderNameList();
       $('nameCard').hidden = false; $('openCard').hidden = true;
       $('homeErr').textContent = '';
     }
@@ -803,6 +843,30 @@
         b.onclick = () => { genFilter[boxId] = g; redraw(); };
         box.appendChild(b);
       });
+    }
+    // 今日の部屋に名簿があるとき（USE_ROSTER）だけ、入力した文字に合う名前を候補に出す。候補を押すと、名前と代が入る
+    function renderNameList() {
+      if (!pending) return;
+      const roster = pending.room.roster || {};
+      const typed = $('nameInput').value.trim();
+      const q = kana(norm(typed));
+      const list = Object.entries(roster).filter(([, n]) => !q || kana(norm(n)).includes(q)).sort((a, b) => ja(a[1], b[1]));
+      const box = $('nameList');
+      box.innerHTML = '';
+      list.forEach(([k, n]) => {
+        const l = document.createElement('label');
+        if (n === typed) l.className = 'sel';
+        const r = document.createElement('input');
+        r.type = 'radio'; r.name = 'who'; r.checked = n === typed;
+        r.onchange = () => { $('nameInput').value = n; const g = (pending.room.rosterGen || {})[k]; if (g && !$('genInput').value.trim()) $('genInput').value = g; renderNameList(); };
+        const t = document.createElement('span'); t.textContent = n;
+        l.append(r, t);
+        box.appendChild(l);
+      });
+      const has = Object.keys(roster).length > 0;
+      box.hidden = !list.length;
+      $('nameHint').hidden = !has || !typed;
+      $('nameHint').textContent = !has || !typed ? '' : Object.values(roster).includes(typed) ? '名簿にある名前です' : list.length ? '候補を押すか、このまま入力した名前で入れます' : '今日の練習名簿に見つかりません。このまま入れます';
     }
     function nameOk() {
       const name = $('nameInput').value.replace(/\s+/g, ' ').trim();
@@ -1485,13 +1549,24 @@
     // ============================================================
     // メンバーに配るリンク（部屋の合言葉が入る）
     // ============================================================
+    function saveApi() {
+      const url = $('apiUrl').value.trim();
+      if (!url) { $('homeErr').textContent = '出欠アプリのURLを入力してください'; return false; }
+      if (!/^https:\/\/script\.google\.com\//.test(url)) { $('homeErr').textContent = 'URLは https://script.google.com/ で始まるものを入れてください'; return false; }
+      api = { url }; save('api', api); $('homeErr').textContent = ''; return true;
+    }
     function copyApiLink() {
+      if (USE_ROSTER && !saveApi()) return;
       let secret = load('roomSecret', '');
       if (!secret) {   // まだ合言葉がなければ、新しく作る
         secret = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
         save('roomSecret', secret); remove('roomKey');
       }
-      const link = location.href.split('#')[0].split('?')[0] + '#r=' + secret;
+      let link = location.href.split('#')[0].split('?')[0] + '#r=' + secret;
+      if (USE_ROSTER) {   // 名簿を使うときは、出欠アプリのURLと、名簿を頼むための合言葉も入れる
+        if (!joinKey) { $('homeErr').textContent = '名簿用の合言葉が入っていません。合言葉の入った管理者用リンクで、この端末を開き直してください。'; return; }
+        link += '&u=' + encodeURIComponent(api.url) + '&s=' + encodeURIComponent(joinKey);
+      }
       const done = () => { $('apiLinkBtn').innerHTML = ic('check') + 'コピーしました'; setTimeout(() => { $('apiLinkBtn').textContent = 'メンバーに配るリンクをコピー'; }, 2000); };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, () => prompt('このリンクをコピーしてください', link));
       else prompt('このリンクをコピーしてください', link);
@@ -1501,7 +1576,9 @@
     (function importApiFromLink() {
       const h = new URLSearchParams(location.hash.replace(/^#/, ''));
       let used = false;
-      if (h.has('u') || h.has('s') || h.has('k') || h.has('h')) used = true;   // 昔のリンクの、出欠アプリのURL・キーは、もう使わない（アドレスからは消す）
+      if (h.get('u') && /^https:\/\/script\.google\.com\//.test(h.get('u'))) { api = { url: h.get('u') }; save('api', api); used = true; }   // 出欠アプリのURL（USE_ROSTER のときだけ使う）
+      if (/^[A-Za-z0-9_-]{16,64}$/.test(h.get('s') || '')) { joinKey = h.get('s'); save('join', joinKey); used = true; }
+      if (h.has('k') || h.has('h')) used = true;   // 昔のリンクのキー（連携・お店検索）は使わない（アドレスからは消す）
       if (/^[0-9a-f-]{32,100}$/.test(h.get('r') || '')) {   // 部屋の合言葉
         save('roomSecret', h.get('r')); remove('roomKey'); used = true;
         const st = load('pendingDo', null); remove('pendingDo');   // さっきQRを読んで、設定がなくて止まっていたなら、その続きをする
@@ -1547,7 +1624,8 @@
     $('openBtn').onclick = () => { autoOpen = true; openToday(); };
     $('nameOkBtn').onclick = nameOk;
     $('nameCancelBtn').onclick = nameCancel;
-        $('genInput').onkeydown = e => { if (e.key === 'Enter') nameOk(); };
+        $('nameInput').oninput = renderNameList;
+    $('genInput').onkeydown = e => { if (e.key === 'Enter') nameOk(); };
     $('qShop').onclick = () => quick('shop');
     $('qMove').onclick = () => quick('moving');
     $('qArrive').onclick = () => quick('arrived');
@@ -1590,6 +1668,9 @@
     $('afterShop').oninput = renderAfter;
     $('afterShop').onkeydown = e => { if (e.key === 'Enter') addAfter(); };
     $('apiLinkBtn').onclick = copyApiLink;
+    $('apiSaveBtn').onclick = () => { if (saveApi()) $('homeErr').textContent = '保存しました'; };
+    $('apiBox').hidden = !USE_ROSTER;
+    if (api) $('apiUrl').value = api.url || '';
 
     // 思わぬエラーは、画面に出す（スマホでは原因が見えないため）
     window.addEventListener('error', e => toast('エラー：' + (e.message || '') + (e.lineno ? '（' + e.lineno + '行目）' : ''), true, 10000));
@@ -1611,6 +1692,7 @@
       catch (e) { show('home'); $('openMsg').textContent = ''; $('homeErr').textContent = 'サーバーに接続できませんでした：' + (e.message || e); return; }
       if (resume) {
         enterMode(todayRid);
+        backend.getRoom(todayRid).then(maybeSyncRoster).catch(() => {});
       } else {
         autoOpen = true; openToday();
       }
