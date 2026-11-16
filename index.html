@@ -89,7 +89,16 @@
     .place .chip { font-size: 1rem; padding: 6px 10px; }
     .place .chip small { margin-left: 6px; font-size: 0.72rem; color: var(--text-muted); }
     .place .chip.go { border-style: dashed; }
-    #buHero .quick { grid-template-columns: repeat(2, 1fr); }
+    #buHero { padding: 8px; }
+    #buHero .hero-head { min-height: 0; }
+    #buHero .hero-user { font-size: 0.9rem; }
+    #buHero .quick { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    #buHero .qbtn { min-height: 46px; padding: 4px 2px; gap: 1px; font-size: 0.66rem; line-height: 1.2; }
+    #buHero .qbtn .ic { width: 20px; height: 20px; }
+    #buHero > * + * { margin-top: 6px; }
+    .nowbar { display: flex; flex-direction: column; gap: 6px; }
+    .nowbar .chips { gap: 6px; }
+    .nowbar button { width: auto; min-height: 0; padding: 4px 10px; font-size: 0.8rem; margin: 0; }
     #bushitsu .hero { margin-top: auto; position: sticky; bottom: 0; z-index: 5; box-shadow: 0 0 0 var(--gap) var(--bg); }
     #openCard { background: none; border: none; padding: 8px 0; }
     #room .card > * + *, #room #withBlock > * + * { margin-top: 10px; }
@@ -276,6 +285,8 @@
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></symbol>
     <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-gobu" viewBox="0 0 24 24"><path d="M2.5 11L9 5l6.5 6M4.5 10v9h9v-9M15.5 17h6.5M19 14l3 3-3 3"/></symbol>
+    <symbol id="i-gorota" viewBox="0 0 24 24"><path d="M3.5 20V4M3.5 4.5h9l-1.8 3 1.8 3h-9M14.5 17h7.5M19 14l3 3-3 3"/></symbol>
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></symbol>
     <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.8 0 5 2.2 5 5"/></symbol>
   </svg>
@@ -406,6 +417,10 @@
         </div>
       </div>
 
+      <div class="nowbar">
+        <div class="chips gens" id="nowGen" hidden></div>
+        <div class="chips gens" id="nowSort"></div>
+      </div>
       <div class="places" id="places"></div>
 
       <div class="hero" id="buHero">
@@ -833,7 +848,7 @@
       $('nameCard').hidden = true; $('openCard').hidden = false;
     }
     // 代の絞り込み（名簿に代の情報があるときだけ出す）。名前の検索と組み合わせて使える
-    const genFilter = { nameGen: '', withGen: '' };
+    const genFilter = { nameGen: '', withGen: '', nowGen: '' };
     function renderGenChips(boxId, keys, gens, redraw) {
       const box = $(boxId);
       const counts = {};
@@ -1468,16 +1483,31 @@
     }
 
     // ---------- 「いま」の画面 ----------
+    let nowSort = ['new', 'name', 'gen'].includes(load('nowSort', 'new')) ? load('nowSort', 'new') : 'new';   // 並べ方
     function renderBushitsu() {
       if (!roomData) return;
       if (roomData.expiresAt - Date.now() <= 0) { finishRoom('今日の分は終了しました'); return; }
-      const pl = currentPlaces(roomData);
+      const all = currentPlaces(roomData);
+      // 代で絞る・並べ方を変える（人数も、絞ったあとの人数）
+      const gens = roomData.rosterGen || {};
+      renderGenChips('nowGen', [...new Set([...Object.keys(roomData.roster || {}), ...Object.keys(roomData.people || {}), ...Object.keys(roomData.bushitsu || {})])], gens, renderBushitsu);
+      const g = genFilter.nowGen;
+      const sortMode = nowSort;
+      const sorter = { new: (a, b) => b.t - a.t || ja(a.name, b.name), name: (a, b) => ja(a.name, b.name), gen: (a, b) => (+gens[b.key] || 0) - (+gens[a.key] || 0) || ja(a.name, b.name) }[sortMode];
+      const pl = {};
+      Object.keys(all).forEach(k => { pl[k] = all[k].filter(m => !g || gens[m.key] === g).sort(sorter); });
+      const sb = $('nowSort'); sb.innerHTML = '';
+      [['new', '新しい順'], ['name', '名前順'], ['gen', '代順']].forEach(([v, label]) => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'sub' + (sortMode === v ? ' on' : ''); b.textContent = label;
+        b.onclick = () => { nowSort = v; save('nowSort', v); renderBushitsu(); };
+        sb.appendChild(b);
+      });
       const mine = myPlace(roomData);
       const me = mine ? mine.place : 'none';
       $('buName').textContent = myName;
       $('buMe').textContent = { none: '', bu: '部室にいます', bgo: '部室へ向かっています', go: 'ロタへ向かっています', rota: 'ロタにいます' }[me];
       $('buHero').className = 'hero ' + ({ bu: 'shop', bgo: 'moving', go: 'moving', rota: 'arrived' }[me] || '');
-      [['qBuGo', 'bgo', 'walk', '部室へ向かう', 'moving'], ['qBuIn', 'bu', 'home', '部室にいる', 'shop'], ['qGo', 'go', 'walk', 'ロタへ向かう', 'moving'], ['qRota', 'rota', 'flag', 'ロタにいる', 'arrived']].forEach(([id, pk, icon, label, cls]) => {
+      [['qBuGo', 'bgo', 'gobu', '部室へ向かう', 'moving'], ['qBuIn', 'bu', 'home', '部室にいる', 'shop'], ['qGo', 'go', 'gorota', 'ロタへ向かう', 'moving'], ['qRota', 'rota', 'flag', 'ロタにいる', 'arrived']].forEach(([id, pk, icon, label, cls]) => {
         const b = $(id);
         b.className = 'qbtn ' + cls + (me === pk ? ' on' : '');
         b.innerHTML = ic(icon) + `<span>${label}</span>`;
