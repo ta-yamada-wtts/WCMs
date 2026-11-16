@@ -95,6 +95,8 @@
     .place .chip { font-size: 0.67rem; padding: 4px 7px; }
     .place .chip small { margin-left: 4px; font-size: 0.55rem; color: var(--text-muted); }
     .place .chip.go { border-style: dashed; }
+    .place .chip.mask { color: var(--text-muted); letter-spacing: .1em; }
+    .lockmsg { font-size: 0.85rem; font-weight: 600; color: var(--amber); text-align: center; }
     /* 状況が変わったときの、軽い動き（変わったところだけ。動きを減らす設定の端末では止める） */
     @keyframes chipIn { from { opacity: 0; transform: translateY(-6px) scale(.9); } to { opacity: 1; transform: none; } }
     @keyframes numBump { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
@@ -975,8 +977,8 @@
     const PLACE_MSG = { bu: '部室にいると伝えました', bgo: '部室へ向かうと伝えました', go: 'ロタへ向かうと伝えました', rota: 'ロタにいると伝えました' };
     async function pressPlace(place) {
       const cur = myPlace(roomData);
-      if (cur && cur.place === place) { if (await setPlace(null)) toast('取り消しました'); }   // いまの場所をもう一度押すと、取り消し
-      else if (await setPlace(place)) toast(PLACE_MSG[place]);
+      if (cur && cur.place === place) { if (await setPlace(null)) { save('shared', boardDay().id); toast('取り消しました'); } }   // いまの場所をもう一度押すと、取り消し
+      else if (await setPlace(place)) { save('shared', boardDay().id); toast(PLACE_MSG[place]); }   // 今日一度でも伝えたら、名前が見える
     }
     async function applyDo(action) {
       if (!roomId || !myName) return;
@@ -986,8 +988,8 @@
           const cur = myPlace(room);
           action = cur && cur.place === 'bu' ? 'bushitsu-out' : 'bushitsu-in';
         }
-        if (action === 'bushitsu-out') { if (await setPlace(null)) toast('部室を出たと伝えました'); }
-        else if (await setPlace('bu')) toast(PLACE_MSG.bu);
+        if (action === 'bushitsu-out') { if (await setPlace(null)) { save('shared', boardDay().id); toast('部室を出たと伝えました'); } }
+        else if (await setPlace('bu')) { save('shared', boardDay().id); toast(PLACE_MSG.bu); }
       } catch (e) { toast('送信に失敗しました：' + (e.message || e), true); }
     }
 
@@ -1512,6 +1514,9 @@
       Object.keys(all).forEach(k => { pl[k] = all[k].filter(m => !g || gens[m.key] === g).sort(sorter); });
       const mine = myPlace(roomData);
       const me = mine ? mine.place : 'none';
+      // 見るだけの人への対策：今日まだ自分の場所を伝えていない間は、人数だけ見せて、名前は伏せる
+      const locked = me === 'none' && load('shared', '') !== boardDay().id;
+      $('nowSort').hidden = locked; if (locked) $('nowGen').hidden = true;
       // 前回から変わったところを調べる（最初の1回と、絞り込みを変えた直後は動かさない）
       const seenNow = { where: {}, g, me, counts: Object.fromEntries(Object.keys(pl).map(k => [k, pl[k].length])) };
       Object.values(all).forEach(l => l.forEach(m => { seenNow.where[m.key] = m.place; }));
@@ -1530,11 +1535,12 @@
       });
       const none = '<div class="chips"><span class="none-txt">いません</span></div>';
       const build = anim => {
-        const chips = (list, extra) => list.map(m => `<span class="chip${m.key === myKey() ? ' me' : ''}${extra}${anim && isNew(m) ? ' new' : ''}">${esc(m.name)}<small>${ago(m.t)}</small></span>`).join('');
+        const chips = (list, extra) => list.map(m => locked ? `<span class="chip mask${extra}">●●●</span>`
+          : `<span class="chip${m.key === myKey() ? ' me' : ''}${extra}${anim && isNew(m) ? ' new' : ''}">${esc(m.name)}<small>${ago(m.t)}</small></span>`).join('');
         const card = (cls, icon, title, list, go) => `<div class="place ${cls}"><div class="ph"><span class="pt">${ic(icon)}${title}</span><span class="pc"><b class="pn${anim && prev && prev.counts[cls] !== list.length ? ' bump' : ''}">${list.length}</b><span class="pu">人</span></span></div>`
           + (list.length ? `<div class="chips">${chips(list, '')}</div>` : none)
           + (go && go.length ? `<div class="psub">${ic('walk')}向かっている ${go.length}人</div><div class="chips">${chips(go, ' go')}</div>` : '') + '</div>';
-        return card('rota', 'flag', 'ロタ', pl.rota, pl.go) + card('bu', 'home', '部室', pl.bu, pl.bgo);
+        return (locked ? '<div class="lockmsg">自分の場所を伝えると、名前が見えます</div>' : '') + card('rota', 'flag', 'ロタ', pl.rota, pl.go) + card('bu', 'home', '部室', pl.bu, pl.bgo);
       };
       const plain = build(false);
       if (last && last.plain === plain) { seenNow.plain = plain; return; }   // 見た目が同じなら、描き直さない（動いている最中のものを止めない）
