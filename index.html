@@ -65,7 +65,6 @@
     #pane1 .hero { margin-top: auto; position: sticky; bottom: 0; z-index: 5; box-shadow: 0 0 0 var(--gap) var(--bg); }
     .bnav { display: none; flex: none; background: var(--surface); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); }
     body.in-room .bnav { display: flex; }
-    body.in-bu .bnav { display: none; }
     body.in-room #room, body.in-room #bushitsu { padding: 10px var(--gap) 12px; gap: 12px; }
     /* ボードの中では、上の帯（アプリ名）を畳んで場所を空ける。「オフライン」の印だけ残す */
     body.in-room header { padding: env(safe-area-inset-top) var(--gap) 0; border-bottom: 0; justify-content: flex-end; }
@@ -73,14 +72,24 @@
     body.in-room header #modeBadge:not(:empty) { margin-top: 6px; }
     #room .pane { gap: 12px; }
     #room .card, #bushitsu .card { padding: 14px; }
-    .modebtn { display: flex; align-items: center; justify-content: flex-start; gap: 14px; width: 100%; min-height: 76px; padding: 14px 16px; text-align: left; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-mid); border-radius: var(--radius-lg); font-size: 1.1rem; font-weight: 800; }
-    .modebtn:active { background: #374151; transform: scale(.98); }
-    .modebtn .ic { width: 28px; height: 28px; }
-    .modebtn small { display: block; margin-top: 2px; font-size: 0.78rem; font-weight: 400; color: var(--text-muted); }
-    #mode .card > * + * { margin-top: 12px; }
-    #buHero .quick { grid-template-columns: repeat(2, 1fr); }
+    .places { display: flex; flex-direction: column; gap: 12px; }
+    .place { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--border-mid); border-radius: var(--radius-lg); padding: 14px; }
+    .place.rota { border-top-color: var(--green); }
+    .place.bu { border-top-color: var(--blue); }
+    .place .ph { display: flex; align-items: center; gap: 8px; }
+    .place .pt { display: flex; align-items: center; gap: 8px; font-size: 1.15rem; font-weight: 800; }
+    .place .pc { margin-left: auto; display: flex; align-items: baseline; gap: 4px; }
+    .place .pn { font-size: 2.6rem; font-weight: 800; line-height: 1; }
+    .place.rota .pn { color: var(--green); }
+    .place.bu .pn { color: var(--blue); }
+    .place .pu { font-size: 0.9rem; color: var(--text-sub); }
+    .place .chips { margin-top: 10px; }
+    .place .psub { margin-top: 12px; font-size: 0.8rem; font-weight: 700; color: var(--amber); display: flex; align-items: center; gap: 6px; }
+    .place .psub + .chips { margin-top: 8px; }
+    .place .chip { font-size: 1rem; padding: 6px 10px; }
+    .place .chip small { margin-left: 6px; font-size: 0.72rem; color: var(--text-muted); }
+    .place .chip.go { border-style: dashed; }
     #bushitsu .hero { margin-top: auto; position: sticky; bottom: 0; z-index: 5; box-shadow: 0 0 0 var(--gap) var(--bg); }
-    .swbtn { width: auto; min-height: 0; padding: 4px 10px; font-size: 0.8rem; margin: 0; }
     #openCard { background: none; border: none; padding: 8px 0; }
     #room .card > * + *, #room #withBlock > * + * { margin-top: 10px; }
     body.in-room .toast { bottom: auto; top: calc(12px + env(safe-area-inset-top)); transform: translateX(-50%) translateY(-300px); }
@@ -164,14 +173,6 @@
 
     /* 一覧：1行ごとに角丸の枠。選んだ行は薄い青 */
     .gens { gap: 6px; }
-    .glance { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .glance button { display: block; width: auto; min-height: 0; margin: 0; padding: 8px 12px; text-align: left; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); }
-    .glance button:active { background: var(--surface-2); }
-    .glance .gh { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: 0.8rem; font-weight: 600; color: var(--text-sub); }
-    .glance .gh b { font-size: 1.3rem; font-weight: 800; color: var(--text); line-height: 1.1; }
-    .glance .gn { margin-top: 2px; font-size: 0.75rem; font-weight: 400; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-height: 1.1em; }
-    .glance .g-rota b { color: var(--green); }
-    .glance .g-bu b { color: var(--blue); }
     .sim { align-items: center; gap: 6px; }
     .sim span { font-size: 0.8rem; color: var(--text-muted); }
     .sim button { background: var(--blue-soft); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); border-radius: 999px; padding: 4px 12px; font-size: 0.9rem; font-weight: 600; width: auto; min-height: 0; margin: 0; }
@@ -278,24 +279,13 @@
     <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.8 0 5 2.2 5 5"/></symbol>
   </svg>
   <header>
-    <span>WCMs <small>アフターの集合</small></span>
+    <span>WCMs <small>ロタと部室</small></span>
     <small id="modeBadge"></small>
   </header>
 
   <main>
     <!-- ホーム -->
-    <!-- 最初の画面：アフターか部室か -->
-    <section id="mode" class="screen active">
-      <div class="card">
-        <h2>どちらを開きますか？</h2>
-        <button class="modebtn" id="modeAfter" disabled><svg class="ic"><use href="#i-glass"/></svg><span>アフター<small>飲み会の集合（お店・ロタ・二次会）</small></span></button>
-        <button class="modebtn" id="modeBu" disabled><svg class="ic"><use href="#i-home"/></svg><span>部室<small>部室にいる人を見る・自分の場所を伝える</small></span></button>
-      </div>
-      <button class="link" id="modeSettings" hidden>設定</button>
-    </section>
-
-    <!-- ホーム -->
-    <section id="home" class="screen">
+    <section id="home" class="screen active">
       <div class="notice" id="demoNotice" hidden>
         お試しモードです（Firebase 未設定）。同じブラウザの別タブ同士でしか共有されません。設定方法は README を見てください。
       </div>
@@ -307,16 +297,16 @@
         <input id="nameSearch" type="search" placeholder="名簿を検索" autocomplete="off">
         <div class="chips gens" id="nameGen" hidden></div>
         <div class="shoplist" id="nameList"></div>
-        <p class="section-label"><svg class="ic"><use href="#i-glass"/></svg>アフターから参加する人：名前を入力</p>
+        <p class="section-label"><svg class="ic"><use href="#i-glass"/></svg>名簿にいない人：名前を入力</p>
         <input id="nameInput" maxlength="30" placeholder="例：たけし" autocomplete="off">
         <button id="nameOkBtn">この名前で入る</button>
         <button id="nameCancelBtn" class="sub">やめる</button>
       </div>
 
       <div class="card" id="openCard">
-        <h2 id="openTitle">今日のアフター</h2>
+        <h2 id="openTitle">今日のロタと部室</h2>
         <p class="muted" id="openMsg">開いています…</p>
-        <button id="openBtn" hidden>今日のアフターを開く</button>
+        <button id="openBtn" hidden>今日を開く</button>
       </div>
 
       <p class="err" id="homeErr"></p>
@@ -337,7 +327,7 @@
         </details>
       </div>
 
-      <p class="muted">位置情報は使いません。アフターは翌朝4時に自動で消えます。</p>
+      <p class="muted">位置情報は使いません。状況は翌朝4時に自動で消えます。</p>
     </section>
 
     <!-- ボード -->
@@ -348,11 +338,6 @@
           <div class="muted" id="remain"></div>
           <button class="icon" id="settingsBtn" title="設定" aria-label="設定"><svg class="ic"><use href="#i-gear"/></svg></button>
         </div>
-      </div>
-
-      <div class="glance" id="glance">
-        <button type="button" class="g-rota" data-go="rota"><div class="gh"><span>ロタ</span><b id="gRota">0</b></div><div class="gn" id="gRotaN"></div></button>
-        <button type="button" class="g-bu" data-go="bu"><div class="gh"><span>部室</span><b id="gBu">0</b></div><div class="gn" id="gBuN"></div></button>
       </div>
 
       <div class="pane" id="pane1">
@@ -411,25 +396,16 @@
 
     </section>
 
-    <!-- 部室 -->
+    <!-- いま：ロタと部室に誰がいるか（このアプリの中心の画面） -->
     <section id="bushitsu" class="screen">
       <div class="top">
         <div class="date" id="buDate"></div>
         <div class="top-r">
-          <button class="sub swbtn" id="buSwitch">アフターへ</button>
           <button class="icon" id="buSettings" title="設定" aria-label="設定" style="display:none"><svg class="ic"><use href="#i-gear"/></svg></button>
         </div>
       </div>
 
-      <div class="glance">
-        <button type="button" class="g-rota" data-go="rota"><div class="gh"><span>ロタ</span><b id="hRota">0</b></div><div class="gn" id="hRotaN"></div></button>
-        <button type="button" class="g-bu" data-go="bu"><div class="gh"><span>部室</span><b id="hBu">0</b></div><div class="gn" id="hBuN"></div></button>
-      </div>
-
-      <div class="card">
-        <p class="card-title"><span class="t"><svg class="ic"><use href="#i-home"/></svg>部室</span></p>
-        <div id="buWho"></div>
-      </div>
+      <div class="places" id="places"></div>
 
       <div class="hero" id="buHero">
         <div class="hero-head">
@@ -437,8 +413,9 @@
           <div class="hero-sub" id="buMe"></div>
         </div>
         <div class="quick">
-          <button id="qBuGo" class="qbtn moving"></button>
           <button id="qBuIn" class="qbtn shop"></button>
+          <button id="qGo" class="qbtn moving"></button>
+          <button id="qRota" class="qbtn arrived"></button>
         </div>
       </div>
     </section>
@@ -446,7 +423,8 @@
 
   <!-- 下のタブ：一次会 / 二次会 / みんなの状況（ボード画面のときだけ出る） -->
   <nav class="bnav" id="bnav" aria-label="画面の切り替え">
-    <button data-tab="1" class="on"><svg class="ic"><use href="#i-fork"/></svg><span>一次会</span></button>
+    <button data-tab="0" class="on"><svg class="ic"><use href="#i-home"/></svg><span>いま</span></button>
+    <button data-tab="1"><svg class="ic"><use href="#i-fork"/></svg><span>一次会</span></button>
     <button data-tab="2"><svg class="ic"><use href="#i-glass"/></svg><span>二次会<b class="badge" id="badge2" hidden></b></span></button>
     <button data-tab="3"><svg class="ic"><use href="#i-users"/></svg><span>みんなの状況<b class="badge" id="badge3" hidden></b></span></button>
   </nav>
@@ -482,6 +460,8 @@
       appId: "1:507561141213:web:f0a813730990ba983f0c34"
     };
 
+    // 一次会（お店を選ぶ・いっしょに行く人）とみんなの状況は、いまは画面に出さない（機能とデータは残してある）。出すときは true
+    const SHOW_SHOPS = false;
     const STORE_PREFIX = 'wcms_';
     const ROSTER_STALE_MS = 30 * 60000;   // 出席者名簿をこれより古ければ、開いたときに取り込み直す
     const DAY_START_HOUR = 4;             // ボードの1日は朝4時に切り替わる（深夜の二次会まで同じボード）
@@ -558,7 +538,7 @@
       async getRoom(id) { return (await this.ref(id).get()).val(); },
       watchRoom(id, cb) {
         const r = this.ref(id);
-        const fn = r.on('value', s => cb(s.val()), e => toast('アフターを読み込めませんでした：' + (e.message || e), true));
+        const fn = r.on('value', s => cb(s.val()), e => toast('読み込めませんでした：' + (e.message || e), true));
         return () => r.off('value', fn);
       },
       async setPeople(id, map) { await this.ref(id, 'people').update(map); },
@@ -668,6 +648,7 @@
     let myStatus = 'none', myShop = '';
     let withKeys = new Set();    // 「いっしょに行く人」に選んだ人のキー（自分の操作と同じ状況にまとめて更新する）
     let autoOpen = true;         // 退出した直後は、自動で開き直さない
+    let startTab = 0;            // 読み込み直しのあと、最初に出すタブ（1回だけ使う）
 
     const myKey = () => mapKey(myName);
     // 通信が3秒以上切れたら、ヘッダーに「オフライン」と出す（つながるまで、操作は端末に溜まって後で送られる）
@@ -688,23 +669,24 @@
     }
     // 以前の「エラー表示欄」の代わり：文字を入れると赤いトーストになる（空は何もしない）
     const roomErr = { set textContent(v) { if (v) toast(v, true); } };
-    let resumeTab = 0;   // 読み込み直しのあと、最初にボードを出すときに戻すタブ（1回だけ使う）
     function show(id) {
-      const wasRoom = $('room').classList.contains('active');
       document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
       document.body.classList.toggle('in-room', id === 'room' || id === 'bushitsu');
-      document.body.classList.toggle('in-bu', id === 'bushitsu');
-      if (id === 'room' && !wasRoom) { setTab(resumeTab || 1); resumeTab = 0; }
     }
-    // 下のタブ：一次会（お店・自分の状況）/ 二次会 / みんなの状況
+    // 下のタブ：いま(0) / 一次会(1) / 二次会(2) / みんなの状況(3)
     function setTab(n) {
       closeSheet();
+      if (n !== 0 && n !== 2 && !SHOW_SHOPS) n = 0;
       try { sessionStorage.setItem(STORE_PREFIX + 'tab', String(n)); } catch (e) {}   // 読み込み直しても、同じタブに戻れるように
+      show(n === 0 ? 'bushitsu' : 'room');
       [1, 2, 3].forEach(i => { $('pane' + i).hidden = i !== n; });
       document.querySelectorAll('#bnav button').forEach(b => b.classList.toggle('on', +b.dataset.tab === n));
-      $('room').scrollTop = 0;
+      $(n === 0 ? 'bushitsu' : 'room').scrollTop = 0;
     }
-    document.querySelectorAll('#bnav button').forEach(b => { b.onclick = () => setTab(+b.dataset.tab); });
+    document.querySelectorAll('#bnav button').forEach(b => {
+      if (!SHOW_SHOPS && (b.dataset.tab === '1' || b.dataset.tab === '3')) b.hidden = true;
+      b.onclick = () => setTab(+b.dataset.tab);
+    });
     function fmtRemain(ms) {
       if (ms <= 0) return '終了しました';
       const m = Math.ceil(ms / 60000);
@@ -776,7 +758,7 @@
     // ============================================================
     // 今日のボードを開く（なければ自動で作る）
     // ============================================================
-    // 今日の部屋（アフターも部室も、同じ部屋）を取る。なければ作る
+    // 今日の部屋（ロタ・部室・二次会が同じ部屋）を取る。なければ作る
     async function obtainRoom(day) {
       let rid = await ensureRoomId(day);
       if (!rid) {   // この端末がまだ合言葉を知らない（初めて・データを消した）ときだけ、出欠アプリに聞く
@@ -802,8 +784,8 @@
         room = demoRoom(day);
         await backend.createRoom(rid, room);
       }
-      if (!room) throw new Error(hasApi() ? '今日のアフターを作れませんでした。少し待ってから、もう一度開いてください。'
-        : '今日のアフターはまだ始まっていません。サークル出欠との連携が入ったリンクから開いてください。');
+      if (!room) throw new Error(hasApi() ? '今日の部屋を作れませんでした。少し待ってから、もう一度開いてください。'
+        : '今日の部屋はまだ始まっていません。サークル出欠との連携が入ったリンクから開いてください。');
       return { rid, room };
     }
 
@@ -811,7 +793,7 @@
       $('homeErr').textContent = '';
       $('openBtn').hidden = true; $('openMsg').textContent = '開いています…';
       const day = boardDay();
-      $('openTitle').textContent = day.label + (entryMode === 'bushitsu' ? ' の部室' : ' のアフター');
+      $('openTitle').textContent = day.label + ' のロタと部室';
       try {
         // 昔のボードの掃除（期限切れの日だけ消せる）
         [1, 2, 3].forEach(k => backend.deleteRoom(boardDay(Date.now() - k * 86400000).id).catch(() => {}));
@@ -901,71 +883,82 @@
     function nameCancel() {
       hideNamePicker();
       autoOpen = false;
-      show('mode');
+      $('openMsg').textContent = ''; $('openBtn').hidden = false; $('openBtn').textContent = '今日を開く';
     }
 
     // ============================================================
     // ボード
     // ============================================================
-    let entryMode = load('mode', 'after') === 'bushitsu' ? 'bushitsu' : 'after';   // いま開いているのが、アフターか部室か
-    const enterMode = id => entryMode === 'bushitsu' ? enterBushitsu(id) : enterRoom(id);
-    async function enterRoom(id) {
-      entryMode = 'after'; save('mode', 'after');
+    async function enterMode(id) {
       roomId = id; roomData = null;
-      save('lastRoom', id);   // 読み込み直したとき、「開いています…」を挟まずにこのボードへ戻る
+      save('lastRoom', id);   // 読み込み直したとき、「開いています…」を挟まずにこの部屋へ戻る
       myStatus = 'none'; myShop = ''; withKeys = new Set();
-      $('roomDate').textContent = boardDay().label;
+      $('buDate').textContent = $('roomDate').textContent = boardDay().label;
+      $('remain').textContent = '読み込み中…';
       roomErr.textContent = '';
       $('shopSearch').value = ''; $('withSearch').value = '';
-      $('remain').textContent = '読み込み中…';
-      show('room');
+      setTab(startTab); startTab = 0;
       unwatch = backend.watchRoom(id, onRoomUpdate);
+      if (pendingDo) { const a = pendingDo; pendingDo = null; applyDo(a); }   // QR・ショートカットで開いたときは、その状況にする
       // 保険：数秒たっても中身が届かないときは、取りに行く（それでもだめなら理由を出す）
       setTimeout(async () => {
         if (roomId !== id || roomData) return;
         try { onRoomUpdate(await backend.getRoom(id)); }
-        catch (e) { toast('アフターを読み込めませんでした。電波の良い所で開き直してください（' + (e.message || e) + '）', true, 10000); }
+        catch (e) { toast('読み込めませんでした。電波の良い所で開き直してください（' + (e.message || e) + '）', true, 10000); }
       }, 4000);
     }
 
-    async function enterBushitsu(id) {
-      entryMode = 'bushitsu'; save('mode', 'bushitsu');
-      roomId = id; roomData = null;
-      save('lastRoom', id);
-      myStatus = 'none'; myShop = ''; withKeys = new Set();
-      $('buDate').textContent = boardDay().label;
-      show('bushitsu');
-      unwatch = backend.watchRoom(id, onRoomUpdate);
-      if (pendingDo) { const a = pendingDo; pendingDo = null; applyDo(a); }   // QR・ショートカットで開いたときは、その状況にする
-      setTimeout(async () => {
-        if (roomId !== id || roomData) return;
-        try { onRoomUpdate(await backend.getRoom(id)); }
-        catch (e) { toast('部室を読み込めませんでした。電波の良い所で開き直してください（' + (e.message || e) + '）', true, 10000); }
-      }, 4000);
+    // ---------- いまの場所：部室にいる(bu) / ロタへ向かう(go) / ロタにいる(rota)。1人1か所だけ ----------
+    //  書き込み先：部室 = bushitsu/{キー} {name, st:'in', t}、ロタ = people/{キー} {name, st:'moving'|'arrived', t}
+    //  時間切れは、表示の上だけで決める（データは書き換えない。どの端末でも同じ結果になる）
+    const BU_IN_MS = 3 * 3600000, ROTA_GO_MS = 30 * 60000, ROTA_IN_MS = 3 * 3600000;
+    function currentPlaces(data, now = Date.now()) {
+      const best = {};
+      const take = (key, name, place, t) => { if (!best[key] || t > best[key].t) best[key] = { key, name, place, t }; };   // 万一2か所に残っていたら、新しいほう
+      Object.entries((data && data.bushitsu) || {}).forEach(([k, b]) => {
+        if (b && (b.st === 'in' || b.st === 'going') && now - (b.t || 0) < BU_IN_MS) take(k, b.name, 'bu', b.t || 0);
+      });
+      Object.entries((data && data.people) || {}).forEach(([k, p]) => {
+        if (!p) return;
+        if (p.st === 'moving' && now - (p.t || 0) < ROTA_GO_MS) take(k, p.name, 'go', p.t || 0);
+        if (p.st === 'arrived' && now - (p.t || 0) < ROTA_IN_MS) take(k, p.name, 'rota', p.t || 0);
+      });
+      const out = { bu: [], go: [], rota: [] };
+      Object.values(best).forEach(x => out[x.place].push(x));
+      Object.values(out).forEach(l => l.sort((a, b) => b.t - a.t || ja(a.name, b.name)));   // 新しい順
+      return out;
+    }
+    const myPlace = data => { const o = currentPlaces(data), k = myKey(); for (const pl of ['bu', 'go', 'rota']) { const m = o[pl].find(x => x.key === k); if (m) return m; } return null; };
+    const ago = t => { const m = Math.floor((Date.now() - t) / 60000); return m < 1 ? 'いま' : m < 60 ? m + '分前' : Math.floor(m / 60) + '時間前'; };
+
+    // 自分の場所を変える。もう片方（部室⇔ロタ）からは外す。null で取り消し
+    async function setPlace(place) {
+      if (!roomId || !myName) return false;
+      const k = myKey(), t = Date.now();
+      try {
+        if (place === 'bu') await Promise.all([backend.setBushitsu(roomId, k, { name: myName, st: 'in', t }), backend.removePerson(roomId, k)]);
+        else if (place === 'go' || place === 'rota') await Promise.all([backend.setPeople(roomId, { [k]: { name: myName, st: place === 'go' ? 'moving' : 'arrived', t } }), backend.setBushitsu(roomId, k, null)]);
+        else await Promise.all([backend.removePerson(roomId, k), backend.setBushitsu(roomId, k, null)]);
+        return true;
+      } catch (e) { toast('送信に失敗しました：' + (e.message || e), true); return false; }
+    }
+    const PLACE_MSG = { bu: '部室にいると伝えました', go: 'ロタへ向かうと伝えました', rota: 'ロタにいると伝えました' };
+    async function pressPlace(place) {
+      const cur = myPlace(roomData);
+      if (cur && cur.place === place) { if (await setPlace(null)) toast('取り消しました'); }   // いまの場所をもう一度押すと、取り消し
+      else if (await setPlace(place)) toast(PLACE_MSG[place]);
     }
     async function applyDo(action) {
       if (!roomId || !myName) return;
       try {
         if (action === 'bushitsu-toggle') {   // 同じQRで、入る／出る：いま部室にいる人が読めば出る。それ以外は、いる
           const room = await backend.getRoom(roomId);
-          const cur = room && room.bushitsu && room.bushitsu[myKey()];
-          action = buState(cur) === 'in' ? 'bushitsu-out' : 'bushitsu-in';
+          const cur = myPlace(room);
+          action = cur && cur.place === 'bu' ? 'bushitsu-out' : 'bushitsu-in';
         }
-        if (action === 'bushitsu-out') { await backend.setBushitsu(roomId, myKey(), null); toast('部室を出たと伝えました'); }
-        else {
-          const st = action === 'bushitsu-in' ? 'in' : 'going';
-          await backend.setBushitsu(roomId, myKey(), { name: myName, st, t: Date.now() });
-          toast(st === 'in' ? '部室にいると伝えました' : '部室へ向かうと伝えました');
-        }
+        if (action === 'bushitsu-out') { if (await setPlace(null)) toast('部室を出たと伝えました'); }
+        else if (await setPlace('bu')) toast(PLACE_MSG.bu);
       } catch (e) { toast('送信に失敗しました：' + (e.message || e), true); }
-    }
-    // 開いたまま、アフターと部室を行き来する（部屋は同じ。名前もそのまま）
-    function switchMode(m, tab) {
-      if (!roomId) return;
-      const id = roomId;
-      if (unwatch) { unwatch(); unwatch = null; }
-      resumeTab = tab || 0;
-      if (m === 'bushitsu') enterBushitsu(id); else enterRoom(id);
     }
 
     function onRoomUpdate(data) {
@@ -974,13 +967,13 @@
     }
     function onRoomUpdate_(data) {
       if (!roomId) return;
-      if (!data || data.expiresAt <= Date.now()) { finishRoom('今日のアフターは終了しました'); return; }
+      if (!data || data.expiresAt <= Date.now()) { finishRoom('今日の分は終了しました'); return; }
       roomData = data;
       // 自分の状況はサーバーの内容に合わせる（再読み込み後や、幹事に動かされたときも反映される）
       const mine = (data.people || {})[myKey()];
       if (mine) { myStatus = mine.st; myShop = mine.shop || ''; }
       else { myStatus = 'none'; myShop = ''; }
-      if (entryMode === 'bushitsu') renderBushitsu(); else render();
+      render();   // 二次会の画面と、「いま」の画面（最後に renderBushitsu）
     }
 
     function shopEntries() {
@@ -1419,7 +1412,7 @@
       const people = roomData.people || {};
       const members = Object.entries(people).map(([key, p]) => ({ key, ...p }));
       const left = roomData.expiresAt - Date.now();
-      if (left <= 0) { finishRoom('今日のアフターは終了しました'); return; }
+      if (left <= 0) { finishRoom('今日の分は終了しました'); return; }
       $('remain').innerHTML = ic('clock') + esc(fmtRemain(left));
 
       // 自分の状況
@@ -1466,57 +1459,30 @@
       renderBushitsu();
     }
 
-    // 部室の状況の「時間切れ」：表示の上だけで決める（データは書き換えない。どの端末でも同じ結果になる）
-    //  「部室へ向かう」は1時間半たつと「部室にいる」になり、「部室にいる」は、そこから3時間（または、押してから3時間）で外れる。
-    //  それまでに本人が変えたら、その状況が優先される（時間は、押した時刻から数え直す）
-    const BU_GO_MS = 90 * 60000, BU_IN_MS = 3 * 3600000;
-    function buState(p, now = Date.now()) {
-      if (!p) return null;
-      let st = p.st, since = p.t || 0;
-      if (st === 'going' && now - since >= BU_GO_MS) { st = 'in'; since += BU_GO_MS; }
-      return st === 'in' && now - since >= BU_IN_MS ? null : st;
-    }
-
-    // ---------- 部室（アフターとは別の機能）：bushitsu/{名前のキー} = { name, st: 'going' | 'in', t } ----------
+    // ---------- 「いま」の画面 ----------
     function renderBushitsu() {
       if (!roomData) return;
-      if (roomData.expiresAt - Date.now() <= 0) { finishRoom('今日のアフターは終了しました'); return; }
-      const byName = (x, y) => ja(x.name, y.name);
-      const rota = Object.entries(roomData.people || {}).filter(([, p]) => p.st === 'arrived').map(([key, p]) => ({ key, ...p })).sort(byName);
-      const all = Object.entries(roomData.bushitsu || {}).map(([key, p]) => ({ key, ...p, st: buState(p) })).filter(m => m.st);   // 時間がたって外れた人は、出さない
-      const inn = all.filter(m => m.st === 'in').sort(byName), going = all.filter(m => m.st === 'going').sort(byName);
-      const names = list => list.length ? list.slice(0, 3).map(m => m.name).join('・') + (list.length > 3 ? `ほか${list.length - 3}人` : '') : '';
-      ['g', 'h'].forEach(k => {   // 画面の上の帯（アフター側 g・部室側 h）
-        $(k + 'Rota').textContent = rota.length; $(k + 'RotaN').textContent = names(rota);
-        $(k + 'Bu').textContent = inn.length; $(k + 'BuN').textContent = names(inn);
-      });
-      if (entryMode !== 'bushitsu') return;
-      const mine = (roomData.bushitsu || {})[myKey()];
-      const st = buState(mine) || 'none';
+      if (roomData.expiresAt - Date.now() <= 0) { finishRoom('今日の分は終了しました'); return; }
+      const pl = currentPlaces(roomData);
+      const mine = myPlace(roomData);
+      const me = mine ? mine.place : 'none';
       $('buName').textContent = myName;
-      $('buMe').textContent = { none: '', going: '部室へ向かっています', in: '部室にいます' }[st];
-      $('buHero').className = 'hero ' + ({ going: 'moving', in: 'shop' }[st] || '');
-      [['qBuGo', 'going', 'walk', '部室へ向かう'], ['qBuIn', 'in', 'home', '部室にいる']].forEach(([id, s2, icon, label]) => {
+      $('buMe').textContent = { none: '', bu: '部室にいます', go: 'ロタへ向かっています', rota: 'ロタにいます' }[me];
+      $('buHero').className = 'hero ' + ({ bu: 'shop', go: 'moving', rota: 'arrived' }[me] || '');
+      [['qBuIn', 'bu', 'home', '部室にいる', 'shop'], ['qGo', 'go', 'walk', 'ロタへ向かう', 'moving'], ['qRota', 'rota', 'flag', 'ロタにいる', 'arrived']].forEach(([id, pk, icon, label, cls]) => {
         const b = $(id);
-        b.className = 'qbtn ' + (s2 === 'going' ? 'moving' : 'shop') + (st === s2 ? ' on' : '');
+        b.className = 'qbtn ' + cls + (me === pk ? ' on' : '');
         b.innerHTML = ic(icon) + `<span>${label}</span>`;
       });
-      const chip = m => `<span class="chip${m.key === myKey() ? ' me' : ''}">${esc(m.name)}${m.key === myKey() ? '（自分）' : ''}</span>`;
-      const sec = (cls, icon, title, list) => `<div class="sec ${cls}"><h3><span class="t">${ic(icon)}${esc(title)}</span><span class="n">${list.length}人</span></h3><div class="chips">`
-        + (list.length ? list.map(chip).join('') : '<span class="none-txt">いません</span>') + '</div></div>';
-      $('buWho').innerHTML = sec('arrived', 'home', '部室にいる', inn) + sec('moving', 'walk', '部室へ向かっている', going);
-    }
-    async function setBushitsuStatus(st) {
-      if (!roomId || !myName) return;
-      const cur = roomData && roomData.bushitsu && roomData.bushitsu[myKey()];
-      const clear = !!cur && buState(cur) === st;   // いまの状況をもう一度押すと、取り消し
-      try {
-        await backend.setBushitsu(roomId, myKey(), clear ? null : { name: myName, st, t: Date.now() });
-        toast(clear ? '取り消しました' : st === 'in' ? '部室にいると伝えました' : '部室へ向かうと伝えました');
-      } catch (e) { toast('送信に失敗しました：' + (e.message || e), true); }
+      const chips = (list, extra) => list.map(m => `<span class="chip${m.key === myKey() ? ' me' : ''}${extra}">${esc(m.name)}<small>${ago(m.t)}</small></span>`).join('');
+      const none = '<div class="chips"><span class="none-txt">いません</span></div>';
+      const card = (cls, icon, title, list, go) => `<div class="place ${cls}"><div class="ph"><span class="pt">${ic(icon)}${title}</span><span class="pc"><b class="pn">${list.length}</b><span class="pu">人</span></span></div>`
+        + (list.length ? `<div class="chips">${chips(list, '')}</div>` : none)
+        + (go && go.length ? `<div class="psub">${ic('walk')}向かっている ${go.length}人</div><div class="chips">${chips(go, ' go')}</div>` : '') + '</div>';
+      $('places').innerHTML = card('rota', 'flag', 'ロタ', pl.rota, pl.go) + card('bu', 'home', '部室', pl.bu);
     }
 
-    setInterval(() => { if (roomId && roomData) { if (entryMode === 'bushitsu') renderBushitsu(); else render(); } }, 10000);
+    setInterval(() => { if (roomId && roomData) renderBushitsu(); }, 10000);   // 「N分前」と時間切れを、時間とともに更新
 
     async function refreshRoster() {
       $('rosterBtn').disabled = true;
@@ -1542,7 +1508,6 @@
       myName = ''; remove('name'); remove('nameTyped'); remove('lastRoom');   // 次に開いたとき、名前を選び直せる
       autoOpen = false;
       $('openMsg').textContent = ''; $('openBtn').hidden = false; $('openBtn').textContent = '今日を開く';
-      show('mode');
     }
     // ボードから設定（ホーム画面）へ。名前も、ボード上の自分の状況も、そのまま残す
     function openSettings() {
@@ -1556,7 +1521,7 @@
       cleanupRoomView();
       remove('lastRoom');
       autoOpen = false;
-      $('openMsg').textContent = ''; $('openBtn').hidden = false; $('openBtn').textContent = '今日のアフターを開く';
+      $('openMsg').textContent = ''; $('openBtn').hidden = false; $('openBtn').textContent = '今日を開く';
       $('homeErr').textContent = message;
     }
 
@@ -1610,7 +1575,6 @@
     const isAdmin = load('admin', false) === true;
     $('settingsBtn').style.display = isAdmin ? '' : 'none';
     $('buSettings').style.display = isAdmin ? '' : 'none';
-    $('modeSettings').hidden = !isAdmin;
     $('qrDetails').hidden = !isAdmin;
     if (isAdmin) {
       const base = location.href.split('#')[0].split('?')[0];
@@ -1645,22 +1609,11 @@
     addShop = once(addShop); addAfter = once(addAfter);
     $('shopAddBtn').onclick = () => addShop();
     $('settingsBtn').onclick = openSettings;
-    $('qBuGo').onclick = () => setBushitsuStatus('going');
-    $('qBuIn').onclick = () => setBushitsuStatus('in');
-    $('buSwitch').onclick = () => switchMode('after');
+    $('qBuIn').onclick = () => pressPlace('bu');
+    $('qGo').onclick = () => pressPlace('go');
+    $('qRota').onclick = () => pressPlace('rota');
     $('buName').onclick = () => { if (confirm('名前を選び直しますか？')) leaveRoom(); };
     $('buSettings').onclick = openSettings;
-    $('modeSettings').onclick = openSettings;
-    // 画面の上の帯：ロタ → アフターのみんなの状況 / 部室 → 部室
-    document.querySelectorAll('.glance button').forEach(b => {
-      b.onclick = () => {
-        if (b.dataset.go === 'rota') { if (entryMode === 'after') setTab(3); else switchMode('after', 3); }
-        else if (entryMode === 'after') switchMode('bushitsu');
-      };
-    });
-    const pickMode = m => { entryMode = m; save('mode', m); autoOpen = true; show('home'); openToday(); };
-    $('modeAfter').onclick = () => pickMode('after');
-    $('modeBu').onclick = () => pickMode('bushitsu');
     $('sheetBg').onclick = () => { if (Date.now() - sheetOpenedAt > 400) closeSheet(); };   // 長押しを離した瞬間に閉じないように
     (() => {   // 見出しの部分を下へ引く（または押す）と閉じる
       const head = $('sheetHead'), sheet = $('sheet');
@@ -1692,15 +1645,15 @@
 
     (async () => {
       // 読み込み直し（引っ張って更新など）のとき：名前があり、さっきまで今日の部屋にいたなら、
-      // 最初の画面を挟まず、見ていたところ（アフター／部室）のまま出す
-      if (pendingDo) { entryMode = 'bushitsu'; save('mode', 'bushitsu'); }   // QR・ショートカットで開いたら、部室へ
+      // 「開いています…」を挟まず、見ていたタブのまま出す。そうでなければ、そのまま今日を開く（最初の選択画面はない）
       const today = boardDay();
       const todayRid = await ensureRoomId(today);
       const resume = !!myName && !!todayRid && load('lastRoom', '') === todayRid;
       if (resume) {
-        try { resumeTab = +sessionStorage.getItem(STORE_PREFIX + 'tab') || 0; } catch (e) {}
-        if (entryMode === 'bushitsu') { $('buDate').textContent = today.label; show('bushitsu'); }
-        else { $('roomDate').textContent = today.label; $('remain').textContent = '読み込み中…'; show('room'); }
+        try { startTab = +sessionStorage.getItem(STORE_PREFIX + 'tab') || 0; } catch (e) {}
+        if (startTab !== 2 && !(SHOW_SHOPS && (startTab === 1 || startTab === 3))) startTab = 0;
+        $('buDate').textContent = $('roomDate').textContent = today.label; $('remain').textContent = '読み込み中…';
+        show(startTab ? 'room' : 'bushitsu');
       }
       try { uid = await backend.init(); }
       catch (e) { show('home'); $('openMsg').textContent = ''; $('homeErr').textContent = 'サーバーに接続できませんでした：' + (e.message || e); return; }
@@ -1710,10 +1663,8 @@
         backend.getRoom(todayRid).then(room => {
           if (hasFirebase && hasApi() && (!room || !room.rosterAt || Date.now() - room.rosterAt > ROSTER_STALE_MS)) return requestSync();
         }).catch(() => {});
-      } else if (pendingDo) {
-        pickMode('bushitsu');   // 名前がまだなら、名前を入れてもらってから、その状況にする
       } else {
-        $('modeAfter').disabled = false; $('modeBu').disabled = false;   // つながったら、最初の画面のボタンを押せるようにする
+        autoOpen = true; openToday();
       }
     })();
   </script>
