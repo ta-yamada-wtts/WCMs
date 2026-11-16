@@ -347,6 +347,7 @@
             <button id="apiSaveBtn" class="sub">保存する</button>
           </div>
           <button id="apiLinkBtn" class="sub">メンバーに配るリンクをコピー</button>
+          <button id="secretNewBtn" class="sub">合言葉を作り直す</button>
           <p class="muted">配るリンクには、部屋の合言葉が入っています。サークルの外には共有しないでください。メンバーは一度そのリンクを開けば、あとは普通に開くだけで使えます。</p>
         </details>
         <details id="qrDetails">
@@ -1586,14 +1587,24 @@
       if (!/^https:\/\/script\.google\.com\//.test(url)) { $('homeErr').textContent = 'URLは https://script.google.com/ で始まるものを入れてください'; return false; }
       api = { url }; save('api', api); $('homeErr').textContent = ''; return true;
     }
+    // 部屋の合言葉：ランダムな16バイトを、記号なしの22文字にしたもの（リンクを短くするため）
+    const newSecret = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    // LINEなどのリンクのプレビューは、アドレスごとに覚えられる。プレビューの文面を変えたときに、この数字を上げる
+    const SHARE_LINK_V = '2';
+    function renewSecret() {
+      if (!confirm(['合言葉を作り直しますか？', '', '・今日の部屋が新しくなります（いまの状況は引き継がれません）', '・古いリンクを開いた端末は、新しいリンクをもう一度開くまで、入れなくなります', '・メンバーに配る前なら、影響はあなたの端末だけです'].join('\n'))) return;
+      save('roomSecret', newSecret()); remove('roomKey');
+      copyApiLink();
+      toast('合言葉を作り直しました。コピーしたリンクを配ってください', false, 5000);
+    }
     function copyApiLink() {
       if (USE_ROSTER && !saveApi()) return;
       let secret = load('roomSecret', '');
       if (!secret) {   // まだ合言葉がなければ、新しく作る
-        secret = Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+        secret = newSecret();
         save('roomSecret', secret); remove('roomKey');
       }
-      let link = location.href.split('#')[0].split('?')[0] + '#r=' + secret;
+      let link = location.href.split('#')[0].split('?')[0] + '?v=' + SHARE_LINK_V + '#r=' + secret;
       if (USE_ROSTER) {   // 名簿を使うときは、出欠アプリのURLと、名簿を頼むための合言葉も入れる
         if (!joinKey) { $('homeErr').textContent = '名簿用の合言葉が入っていません。合言葉の入った管理者用リンクで、この端末を開き直してください。'; return; }
         link += '&u=' + encodeURIComponent(api.url) + '&s=' + encodeURIComponent(joinKey);
@@ -1610,7 +1621,7 @@
       if (h.get('u') && /^https:\/\/script\.google\.com\//.test(h.get('u'))) { api = { url: h.get('u') }; save('api', api); used = true; }   // 出欠アプリのURL（USE_ROSTER のときだけ使う）
       if (/^[A-Za-z0-9_-]{16,64}$/.test(h.get('s') || '')) { joinKey = h.get('s'); save('join', joinKey); used = true; }
       if (h.has('k') || h.has('h')) used = true;   // 昔のリンクのキー（連携・お店検索）は使わない（アドレスからは消す）
-      if (/^[0-9a-f-]{32,100}$/.test(h.get('r') || '')) {   // 部屋の合言葉
+      if (/^[A-Za-z0-9_-]{16,100}$/.test(h.get('r') || '')) {   // 部屋の合言葉
         save('roomSecret', h.get('r')); remove('roomKey'); used = true;
         const st = load('pendingDo', null); remove('pendingDo');   // さっきQRを読んで、設定がなくて止まっていたなら、その続きをする
         if (st && Date.now() - st.at < 10 * 60000 && !pendingDo && ['bushitsu-in', 'bushitsu-out', 'bushitsu-toggle'].includes(st.a)) pendingDo = st.a;
@@ -1699,6 +1710,7 @@
     $('afterShop').oninput = renderAfter;
     $('afterShop').onkeydown = e => { if (e.key === 'Enter') addAfter(); };
     $('apiLinkBtn').onclick = copyApiLink;
+    $('secretNewBtn').onclick = renewSecret;
     $('apiSaveBtn').onclick = () => { if (saveApi()) $('homeErr').textContent = '保存しました'; };
     $('apiBox').hidden = !USE_ROSTER;
     if (api) $('apiUrl').value = api.url || '';
