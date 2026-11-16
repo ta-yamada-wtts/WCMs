@@ -330,6 +330,11 @@
           <button id="apiLinkBtn" class="sub">メンバーに配るリンクをコピー</button>
           <p class="muted">配るリンクに入るのは、出欠アプリのURLだけです（キーの類は入りません）。メンバーは一度そのリンクを開けば、あとは普通に開くだけで使えます。</p>
         </details>
+        <details id="qrDetails">
+          <summary class="muted">部室に貼る印（QRコード）</summary>
+          <p class="muted">スマホで読み取ると、開いた瞬間にその状況になります。リンクには、出欠アプリのURLなどは入っていません。</p>
+          <div id="qrBox"></div>
+        </details>
       </div>
 
       <p class="muted">位置情報は使いません。アフターは翌朝4時に自動で消えます。</p>
@@ -457,6 +462,7 @@
   </div>
   <div id="toast" class="toast"></div>
 
+  <script src="lib/qrcode.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -925,11 +931,23 @@
       $('buDate').textContent = boardDay().label;
       show('bushitsu');
       unwatch = backend.watchRoom(id, onRoomUpdate);
+      if (pendingDo) { const a = pendingDo; pendingDo = null; applyDo(a); }   // QR・ショートカットで開いたときは、その状況にする
       setTimeout(async () => {
         if (roomId !== id || roomData) return;
         try { onRoomUpdate(await backend.getRoom(id)); }
         catch (e) { toast('部室を読み込めませんでした。電波の良い所で開き直してください（' + (e.message || e) + '）', true, 10000); }
       }, 4000);
+    }
+    async function applyDo(action) {
+      if (!roomId || !myName) return;
+      try {
+        if (action === 'bushitsu-out') { await backend.setBushitsu(roomId, myKey(), null); toast('部室を出たと伝えました'); }
+        else {
+          const st = action === 'bushitsu-in' ? 'in' : 'going';
+          await backend.setBushitsu(roomId, myKey(), { name: myName, st, t: Date.now() });
+          toast(st === 'in' ? '部室にいると伝えました' : '部室へ向かうと伝えました');
+        }
+      } catch (e) { toast('送信に失敗しました：' + (e.message || e), true); }
     }
     // 開いたまま、アフターと部室を行き来する（部屋は同じ。名前もそのまま）
     function switchMode(m, tab) {
@@ -1538,12 +1556,14 @@
       else prompt('このリンクをコピーしてください', link);
     }
     // 配布リンク（#u=…）や、サークル出欠のボタン（#n=名前）で開いたら、設定を保存して、アドレスから消す
+    let pendingDo = null;   // リンク（QR）で開いたときの指示：部室にいる／向かう／出た
     (function importApiFromLink() {
       const h = new URLSearchParams(location.hash.replace(/^#/, ''));
       let used = false;
       if (h.get('u') && /^https:\/\/script\.google\.com\//.test(h.get('u'))) {
         api = { url: h.get('u') }; save('api', api); used = true;
       }
+      if (['bushitsu-in', 'bushitsu-go', 'bushitsu-out'].includes(h.get('do'))) { pendingDo = h.get('do'); used = true; }
       if (h.has('admin')) { save('admin', true); used = true; }   // 管理者（幹事）の端末だけ、設定を出す
       if (h.has('k') || h.has('h')) used = true;   // 昔のリンクのキー（連携・お店検索）は使わない（アドレスからは消す）
       // 名前：未登録の端末はそのまま登録。別の名前で登録済みなら、勝手に変えずに確認する
@@ -1555,7 +1575,7 @@
       if (used) { try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {} }
     })();
     // すでに開いているタブでリンクを踏んだとき（読み込み直しが起きない）も、設定を取り込む
-    window.addEventListener('hashchange', () => { if (/[#&](?:[unhk]=|admin)/.test(location.hash)) location.reload(); });
+    window.addEventListener('hashchange', () => { if (/[#&](?:[unhk]=|admin|do=)/.test(location.hash)) location.reload(); });
 
     // ============================================================
     // 起動
@@ -1566,6 +1586,20 @@
     $('settingsBtn').style.display = isAdmin ? '' : 'none';
     $('buSettings').style.display = isAdmin ? '' : 'none';
     $('modeSettings').hidden = !isAdmin;
+    $('qrDetails').hidden = !isAdmin;
+    if (isAdmin) {
+      const base = location.href.split('#')[0].split('?')[0];
+      [['部室にいる', 'bushitsu-in'], ['部室を出た', 'bushitsu-out']].forEach(([label, act]) => {
+        const url = base + '#do=' + act;
+        const wrap = document.createElement('div'); wrap.style.cssText = 'margin-top:12px';
+        const t = document.createElement('div'); t.className = 'muted'; t.textContent = label;
+        const q = document.createElement('div'); q.style.cssText = 'background:#fff;padding:8px;display:inline-block;margin:6px 0';
+        try { new QRCode(q, { text: url, width: 168, height: 168, correctLevel: QRCode.CorrectLevel.M }); } catch (e) { q.textContent = 'QRを作れませんでした'; }
+        const a = document.createElement('div'); a.className = 'muted'; a.style.cssText = 'word-break:break-all;user-select:all'; a.textContent = url;
+        wrap.append(t, q, a);
+        $('qrBox').appendChild(wrap);
+      });
+    }
     $('setupCard').hidden = !isAdmin;
     $('modeBadge').textContent = hasFirebase ? '' : 'お試し';
     $('demoNotice').hidden = hasFirebase;
@@ -1634,6 +1668,7 @@
     (async () => {
       // 読み込み直し（引っ張って更新など）のとき：名前があり、さっきまで今日の部屋にいたなら、
       // 最初の画面を挟まず、見ていたところ（アフター／部室）のまま出す
+      if (pendingDo) { entryMode = 'bushitsu'; save('mode', 'bushitsu'); }   // QR・ショートカットで開いたら、部室へ
       const today = boardDay();
       const todayRid = await ensureRoomId(today);
       const resume = !!myName && !!todayRid && load('lastRoom', '') === todayRid;
@@ -1650,6 +1685,8 @@
         backend.getRoom(todayRid).then(room => {
           if (hasFirebase && hasApi() && (!room || !room.rosterAt || Date.now() - room.rosterAt > ROSTER_STALE_MS)) return requestSync();
         }).catch(() => {});
+      } else if (pendingDo) {
+        pickMode('bushitsu');   // 名前がまだなら、名前を入れてもらってから、その状況にする
       } else {
         $('modeAfter').disabled = false; $('modeBu').disabled = false;   // つながったら、最初の画面のボタンを押せるようにする
       }
