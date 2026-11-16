@@ -969,7 +969,6 @@
           action = cur && cur.place === 'bu' ? 'bushitsu-out' : 'bushitsu-in';
         }
         if (action === 'bushitsu-out') { if (await setPlace(null)) toast('部室を出たと伝えました'); }
-        else if (action === 'bushitsu-go') { if (await setPlace('bgo')) toast(PLACE_MSG.bgo); }
         else if (await setPlace('bu')) toast(PLACE_MSG.bu);
       } catch (e) { toast('送信に失敗しました：' + (e.message || e), true); }
     }
@@ -1582,9 +1581,9 @@
       if (/^[0-9a-f-]{32,100}$/.test(h.get('r') || '')) {   // 部屋の合言葉
         save('roomSecret', h.get('r')); remove('roomKey'); used = true;
         const st = load('pendingDo', null); remove('pendingDo');   // さっきQRを読んで、設定がなくて止まっていたなら、その続きをする
-        if (st && Date.now() - st.at < 10 * 60000 && !pendingDo && ['bushitsu-in', 'bushitsu-go', 'bushitsu-out', 'bushitsu-toggle'].includes(st.a)) pendingDo = st.a;
+        if (st && Date.now() - st.at < 10 * 60000 && !pendingDo && ['bushitsu-in', 'bushitsu-out', 'bushitsu-toggle'].includes(st.a)) pendingDo = st.a;
       }
-      if (['bushitsu-in', 'bushitsu-go', 'bushitsu-out', 'bushitsu-toggle'].includes(h.get('do'))) { pendingDo = h.get('do'); used = true; }
+      if (['bushitsu-in', 'bushitsu-out', 'bushitsu-toggle'].includes(h.get('do'))) { pendingDo = h.get('do'); used = true; }
       if (h.has('admin')) { save('admin', true); used = true; }   // 管理者（幹事）の端末だけ、設定を出す
       // 名前：未登録の端末はそのまま登録。別の名前で登録済みなら、勝手に変えずに確認する
       const n = (h.get('n') || '').replace(/\s+/g, ' ').trim().slice(0, 30);
