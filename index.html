@@ -1005,8 +1005,8 @@
     const PLACE_MSG = { bu: '部室にいると伝えました', bgo: '部室へ向かうと伝えました', go: 'ロタへ向かうと伝えました', rota: 'ロタにいると伝えました' };
     async function pressPlace(place) {
       const cur = myPlace(roomData);
-      if (cur && cur.place === place) { if (await setPlace(null)) { save('shared', boardDay().id); toast('取り消しました'); } }   // いまの場所をもう一度押すと、取り消し
-      else if (await setPlace(place)) { save('shared', boardDay().id); toast(PLACE_MSG[place]); }   // 今日一度でも伝えたら、名前が見える
+      if (cur && cur.place === place) { if (await setPlace(null)) toast('取り消しました'); }   // いまの場所をもう一度押すと、取り消し
+      else if (await setPlace(place)) toast(PLACE_MSG[place]);
     }
     async function applyDo(action) {
       if (!roomId || !myName) return;
@@ -1016,8 +1016,8 @@
           const cur = myPlace(room);
           action = cur && cur.place === 'bu' ? 'bushitsu-out' : 'bushitsu-in';
         }
-        if (action === 'bushitsu-out') { if (await setPlace(null)) { save('shared', boardDay().id); toast('部室を出たと伝えました'); } }
-        else if (await setPlace('bu')) { save('shared', boardDay().id); toast(PLACE_MSG.bu); }
+        if (action === 'bushitsu-out') { if (await setPlace(null)) toast('部室を出たと伝えました'); }
+        else if (await setPlace('bu')) toast(PLACE_MSG.bu);
       } catch (e) { toast('送信に失敗しました：' + (e.message || e), true); }
     }
 
@@ -1547,8 +1547,8 @@
       Object.keys(all).forEach(k => { pl[k] = all[k].filter(m => !g || gens[m.key] === g).sort(sorter); });
       const mine = myPlace(roomData);
       const me = mine ? mine.place : 'none';
-      // 見るだけの人への対策：今日まだ自分の場所を伝えていない間は、人数だけ見せて、名前は伏せる
-      const locked = me === 'none' && load('shared', '') !== boardDay().id;
+      // 見るだけの人への対策：自分の場所を伝えている間だけ、名前が見える（伝えていない間は、人数だけ見せて、名前は伏せる）
+      const locked = me === 'none';
       $('nowSort').hidden = locked; if (locked) $('nowGen').hidden = true;
       // 前回から変わったところを調べる（最初の1回と、絞り込みを変えた直後は動かさない）
       const seenNow = { where: {}, g, me, counts: Object.fromEntries(Object.keys(pl).map(k => [k, pl[k].length])) };
