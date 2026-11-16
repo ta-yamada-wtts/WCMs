@@ -944,7 +944,7 @@
         if (action === 'bushitsu-toggle') {   // 同じQRで、入る／出る：いま部室にいる人が読めば出る。それ以外は、いる
           const room = await backend.getRoom(roomId);
           const cur = room && room.bushitsu && room.bushitsu[myKey()];
-          action = cur && cur.st === 'in' ? 'bushitsu-out' : 'bushitsu-in';
+          action = buState(cur) === 'in' ? 'bushitsu-out' : 'bushitsu-in';
         }
         if (action === 'bushitsu-out') { await backend.setBushitsu(roomId, myKey(), null); toast('部室を出たと伝えました'); }
         else {
@@ -1461,13 +1461,24 @@
       renderBushitsu();
     }
 
+    // 部室の状況の「時間切れ」：表示の上だけで決める（データは書き換えない。どの端末でも同じ結果になる）
+    //  「部室へ向かう」は1時間半たつと「部室にいる」になり、「部室にいる」は、そこから3時間（または、押してから3時間）で外れる。
+    //  それまでに本人が変えたら、その状況が優先される（時間は、押した時刻から数え直す）
+    const BU_GO_MS = 90 * 60000, BU_IN_MS = 3 * 3600000;
+    function buState(p, now = Date.now()) {
+      if (!p) return null;
+      let st = p.st, since = p.t || 0;
+      if (st === 'going' && now - since >= BU_GO_MS) { st = 'in'; since += BU_GO_MS; }
+      return st === 'in' && now - since >= BU_IN_MS ? null : st;
+    }
+
     // ---------- 部室（アフターとは別の機能）：bushitsu/{名前のキー} = { name, st: 'going' | 'in', t } ----------
     function renderBushitsu() {
       if (!roomData) return;
       if (roomData.expiresAt - Date.now() <= 0) { finishRoom('今日のアフターは終了しました'); return; }
       const byName = (x, y) => ja(x.name, y.name);
       const rota = Object.entries(roomData.people || {}).filter(([, p]) => p.st === 'arrived').map(([key, p]) => ({ key, ...p })).sort(byName);
-      const all = Object.entries(roomData.bushitsu || {}).map(([key, p]) => ({ key, ...p }));
+      const all = Object.entries(roomData.bushitsu || {}).map(([key, p]) => ({ key, ...p, st: buState(p) })).filter(m => m.st);   // 時間がたって外れた人は、出さない
       const inn = all.filter(m => m.st === 'in').sort(byName), going = all.filter(m => m.st === 'going').sort(byName);
       const names = list => list.length ? list.slice(0, 3).map(m => m.name).join('・') + (list.length > 3 ? `ほか${list.length - 3}人` : '') : '';
       ['g', 'h'].forEach(k => {   // 画面の上の帯（アフター側 g・部室側 h）
@@ -1476,7 +1487,7 @@
       });
       if (entryMode !== 'bushitsu') return;
       const mine = (roomData.bushitsu || {})[myKey()];
-      const st = mine ? mine.st : 'none';
+      const st = buState(mine) || 'none';
       $('buName').textContent = myName;
       $('buMe').textContent = { none: '', going: '部室へ向かっています', in: '部室にいます' }[st];
       $('buHero').className = 'hero ' + ({ going: 'moving', in: 'shop' }[st] || '');
@@ -1493,7 +1504,7 @@
     async function setBushitsuStatus(st) {
       if (!roomId || !myName) return;
       const cur = roomData && roomData.bushitsu && roomData.bushitsu[myKey()];
-      const clear = !!cur && cur.st === st;   // いまの状況をもう一度押すと、取り消し
+      const clear = !!cur && buState(cur) === st;   // いまの状況をもう一度押すと、取り消し
       try {
         await backend.setBushitsu(roomId, myKey(), clear ? null : { name: myName, st, t: Date.now() });
         toast(clear ? '取り消しました' : st === 'in' ? '部室にいると伝えました' : '部室へ向かうと伝えました');
