@@ -573,7 +573,16 @@
       } catch (e) {}
       return '';
     }
-    function setSecret(s) { save('roomSecret', s); cookieSecret(s); idbSecret(s); }
+    // 合言葉をアドレスの末尾（#r=…）にも残す。「ホーム画面に追加」は、そのときのアドレスを覚えるので、
+    // ホーム画面のアイコンから開いたときも、貼り付けなしで合言葉が入る。# 以降は、サーバーには送られない
+    function pinSecretToUrl(s) {
+      try {
+        if (!hasFirebase || !s) return;
+        const want = '#r=' + s;
+        if (location.hash !== want) history.replaceState(null, '', location.pathname + location.search + want);
+      } catch (e) {}
+    }
+    function setSecret(s) { save('roomSecret', s); cookieSecret(s); idbSecret(s); pinSecretToUrl(s); }
     // localStorage に無ければ、Cookie → IndexedDB の順に探して戻す。あれば、控えが欠けていないかも確かめて足す
     async function restoreSecret() {
       let s = load('roomSecret', '');
@@ -581,7 +590,7 @@
         s = cookieSecret() || await idbSecret();
         if (s && /^[A-Za-z0-9_-]{16,100}$/.test(s)) save('roomSecret', s); else s = '';
       }
-      if (s) { if (cookieSecret() !== s) cookieSecret(s); idbSecret().then(v => { if (v !== s) idbSecret(s); }); }
+      if (s) { pinSecretToUrl(s); if (cookieSecret() !== s) cookieSecret(s); idbSecret().then(v => { if (v !== s) idbSecret(s); }); }
       return s;
     }
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
