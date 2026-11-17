@@ -541,6 +541,50 @@
     }
     function save(key, value) { try { localStorage.setItem(STORE_PREFIX + key, JSON.stringify(value)); } catch (e) {} }
     function remove(key) { try { localStorage.removeItem(STORE_PREFIX + key); } catch (e) {} }
+
+    // 部屋の合言葉は、これが消えると入れなくなる。だから3か所（localStorage・Cookie・IndexedDB）に控えて、
+    // どれか1つが消えても、残りから自動で戻す。あわせて、ブラウザに「勝手に消さないで」と頼む
+    const SECRET_COOKIE = 'wcms_rs';
+    const secretCookiePath = () => location.pathname.replace(/[^/]*$/, '') || '/';
+    function idbOpen() {
+      return new Promise((res, rej) => {
+        try {
+          const r = indexedDB.open('wcms', 1);
+          r.onupgradeneeded = () => r.result.createObjectStore('kv');
+          r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+        } catch (e) { rej(e); }
+      });
+    }
+    async function idbSecret(val) {   // val を渡すと書く（null で消す）。渡さないと読む
+      try {
+        const db = await idbOpen();
+        return await new Promise(res => {
+          const tx = db.transaction('kv', 'readwrite'), st = tx.objectStore('kv');
+          if (val === undefined) { const g = st.get('roomSecret'); g.onsuccess = () => res(g.result || ''); g.onerror = () => res(''); return; }
+          if (val === null) st.delete('roomSecret'); else st.put(val, 'roomSecret');
+          tx.oncomplete = () => res(''); tx.onerror = () => res('');
+        });
+      } catch (e) { return ''; }
+    }
+    function cookieSecret(val) {
+      try {
+        if (val === undefined) { const m = document.cookie.match(new RegExp('(?:^|; )' + SECRET_COOKIE + '=([A-Za-z0-9_-]{16,100})')); return m ? m[1] : ''; }
+        document.cookie = SECRET_COOKIE + '=' + (val || '') + '; path=' + secretCookiePath() + '; max-age=' + (val ? 31536000 * 2 : 0) + '; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+      } catch (e) {}
+      return '';
+    }
+    function setSecret(s) { save('roomSecret', s); cookieSecret(s); idbSecret(s); }
+    // localStorage に無ければ、Cookie → IndexedDB の順に探して戻す。あれば、控えが欠けていないかも確かめて足す
+    async function restoreSecret() {
+      let s = load('roomSecret', '');
+      if (!s) {
+        s = cookieSecret() || await idbSecret();
+        if (s && /^[A-Za-z0-9_-]{16,100}$/.test(s)) save('roomSecret', s); else s = '';
+      }
+      if (s) { if (cookieSecret() !== s) cookieSecret(s); idbSecret().then(v => { if (v !== s) idbSecret(s); }); }
+      return s;
+    }
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
     const $ = id => document.getElementById(id);
     const ic = n => `<svg class="ic" aria-hidden="true"><use href="#i-${n}"/></svg>`;   // 簡易ピクトグラム（SVGの定義は body の先頭）
     const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -787,7 +831,7 @@
     }
     // 合言葉から、今日の部屋の名前を自分で計算する（HMAC-SHA256）
     async function computeRoomId(day) {
-      const secret = load('roomSecret', '');
+      const secret = await restoreSecret();
       if (!secret || !(window.crypto && crypto.subtle)) return null;
       try {
         const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
@@ -855,7 +899,7 @@
     function pasteLink() {
       const secret = parseSecret($('linkPaste').value);
       if (!secret) { $('homeErr').textContent = 'リンクを読み取れませんでした。配られたリンクを、そのまま貼ってください'; return; }
-      save('roomSecret', secret); remove('roomKey');
+      setSecret(secret); remove('roomKey');
       $('linkPaste').value = '';
       const st = load('pendingDo', null); remove('pendingDo');   // さっきQRを読んで止まっていたなら、その続きをする
       if (st && Date.now() - st.at < 10 * 60000 && !pendingDo && ['bushitsu-in', 'bushitsu-out', 'bushitsu-toggle'].includes(st.a)) pendingDo = st.a;
@@ -1657,7 +1701,7 @@
     const SHARE_LINK_V = '2';
     function renewSecret() {
       if (!confirm(['合言葉を作り直しますか？', '', '・今日の部屋が新しくなります（いまの状況は引き継がれません）', '・古いリンクを開いた端末は、新しいリンクをもう一度開くまで、入れなくなります', '・メンバーに配る前なら、影響はあなたの端末だけです'].join('\n'))) return;
-      save('roomSecret', newSecret()); remove('roomKey');
+      setSecret(newSecret()); remove('roomKey');
       copyApiLink();
       toast('合言葉を作り直しました。コピーしたリンクを配ってください', false, 5000);
     }
@@ -1666,7 +1710,7 @@
       let secret = load('roomSecret', '');
       if (!secret) {   // まだ合言葉がなければ、新しく作る
         secret = newSecret();
-        save('roomSecret', secret); remove('roomKey');
+        setSecret(secret); remove('roomKey');
       }
       let link = location.href.split('#')[0].split('?')[0] + '?v=' + SHARE_LINK_V + '#r=' + secret;
       if (USE_ROSTER) {   // 名簿を使うときは、出欠アプリのURLと、名簿を頼むための合言葉も入れる
@@ -1686,7 +1730,7 @@
       if (/^[A-Za-z0-9_-]{16,64}$/.test(h.get('s') || '')) { joinKey = h.get('s'); save('join', joinKey); used = true; }
       if (h.has('k') || h.has('h')) used = true;   // 昔のリンクのキー（連携・お店検索）は使わない（アドレスからは消す）
       if (/^[A-Za-z0-9_-]{16,100}$/.test(h.get('r') || '')) {   // 部屋の合言葉
-        save('roomSecret', h.get('r')); remove('roomKey'); used = true;
+        setSecret(h.get('r')); remove('roomKey'); used = true;
         const st = load('pendingDo', null); remove('pendingDo');   // さっきQRを読んで、設定がなくて止まっていたなら、その続きをする
         if (st && Date.now() - st.at < 10 * 60000 && !pendingDo && ['bushitsu-in', 'bushitsu-out', 'bushitsu-toggle'].includes(st.a)) pendingDo = st.a;
       }
