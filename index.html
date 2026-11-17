@@ -340,6 +340,11 @@
         <h2 id="openTitle">今日のロタと部室</h2>
         <p class="muted" id="openMsg">開いています…</p>
         <button id="openBtn" hidden>今日を開く</button>
+        <!-- 合言葉がない端末（ホーム画面のアプリ・LINEの中など、リンクを開けない場所）のために、配られたリンクを貼れるようにする -->
+        <div id="setupHelp" hidden>
+          <input id="linkPaste" placeholder="配られたリンクを貼る" autocomplete="off">
+          <button id="linkPasteBtn" class="sub">設定する</button>
+        </div>
       </div>
 
       <p class="err" id="homeErr"></p>
@@ -816,7 +821,7 @@
 
     async function openToday() {
       $('homeErr').textContent = '';
-      $('openBtn').hidden = true; $('openMsg').textContent = '開いています…';
+      $('openBtn').hidden = true; $('openMsg').textContent = '開いています…'; $('setupHelp').hidden = true;
       const day = boardDay();
       $('openTitle').textContent = day.label + ' のロタと部室';
       try {
@@ -833,8 +838,28 @@
         $('openBtn').hidden = false; $('openBtn').textContent = 'もう一度開く';
         $('homeErr').textContent = e.message || String(e);
         // 設定がまだ入っていない端末でQRを読んだとき：指示を10分間覚えておく（配られたリンクを開いたら、続きでその状況にする）
-        if (pendingDo && hasFirebase && !load('roomSecret', '')) save('pendingDo', { a: pendingDo, at: Date.now() });
+        if (hasFirebase && !load('roomSecret', '')) {
+          $('setupHelp').hidden = false;   // リンクを貼って設定できるようにする
+          if (pendingDo) save('pendingDo', { a: pendingDo, at: Date.now() });
+        }
       }
+    }
+
+    // 貼られたリンク（…#r=合言葉）から、合言葉を取り出す。合言葉だけを貼ってもよい
+    function parseSecret(text) {
+      const t = String(text || '').trim();
+      const m = t.match(/[#&?]r=([A-Za-z0-9_-]{16,100})(?![A-Za-z0-9_-])/);
+      if (m) return m[1];
+      return /^[A-Za-z0-9_-]{16,100}$/.test(t) ? t : '';
+    }
+    function pasteLink() {
+      const secret = parseSecret($('linkPaste').value);
+      if (!secret) { $('homeErr').textContent = 'リンクを読み取れませんでした。配られたリンクを、そのまま貼ってください'; return; }
+      save('roomSecret', secret); remove('roomKey');
+      $('linkPaste').value = '';
+      const st = load('pendingDo', null); remove('pendingDo');   // さっきQRを読んで止まっていたなら、その続きをする
+      if (st && Date.now() - st.at < 10 * 60000 && !pendingDo && ['bushitsu-in', 'bushitsu-out', 'bushitsu-toggle'].includes(st.a)) pendingDo = st.a;
+      openToday();
     }
 
     // ---------- 名前登録（名前と、何代か。端末に覚えておく） ----------
@@ -1703,6 +1728,8 @@
     $('modeBadge').textContent = hasFirebase ? '' : 'お試し';
     $('demoNotice').hidden = hasFirebase;
     $('openBtn').onclick = () => { autoOpen = true; openToday(); };
+    $('linkPasteBtn').onclick = pasteLink;
+    $('linkPaste').onkeydown = e => { if (e.key === 'Enter') pasteLink(); };
     $('nameOkBtn').onclick = nameOk;
     $('nameCancelBtn').onclick = nameCancel;
         $('familyInput').oninput = renderNameList; $('givenInput').oninput = renderNameList;
