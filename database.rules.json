@@ -13,6 +13,9 @@
           },
           "likes": {
             "$k": { ".validate": "newData.isString() && newData.val().length <= 30" }
+          },
+          "comments": {
+            "$c": { ".validate": "newData.hasChildren(['by', 'name', 'text', 't']) && newData.child('by').isString() && newData.child('by').val().length <= 30 && newData.child('name').isString() && newData.child('name').val().length <= 30 && newData.child('text').isString() && newData.child('text').val().length >= 1 && newData.child('text').val().length <= 100 && newData.child('t').isNumber()" }
           }
         }
       }

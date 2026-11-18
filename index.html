@@ -288,11 +288,11 @@
     .grow { display: flex; gap: 5px; }
     .grow > * { flex: 1; min-width: 0; width: auto; }
     .gsec { display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); padding: 4px 2px 0; }
-    .gcard { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 7px; display: flex; align-items: center; gap: 8px; }
+    .gcard { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 7px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .gtime { flex: none; width: 52px; text-align: center; font-size: 1.05rem; font-weight: 700; line-height: 1.1; }
     .gtime small { display: block; font-size: 0.6rem; font-weight: 400; color: var(--text-muted); margin-top: 1px; white-space: nowrap; }
     .gtime.later { color: #93c5fd; font-size: 1.05rem; }   /* 明日以降は、日付のほうを目立たせる（時刻は下に小さく） */
-    .gmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .gmain { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .gtop { display: flex; align-items: center; gap: 5px; min-width: 0; }
     .gtag { flex: none; font-size: 0.65rem; font-weight: 700; padding: 0 6px; border-radius: 8px; background: var(--surface-2); color: var(--text-muted); line-height: 1.5; }
     .gtag.nomi { background: rgba(251,191,36,0.15); color: #fbbf24; }
@@ -303,6 +303,15 @@
     .gcount { font-size: 0.75rem; color: var(--text-muted); margin-right: 2px; }
     .gcount.full { color: #fbbf24; font-weight: 700; }
     .chip.wait { opacity: .65; border-style: dashed; }
+    .gcbtn { min-height: 0; width: auto; padding: 0 4px; background: none; border: none; color: var(--text-muted); font-size: 0.72rem; line-height: 1.5; }
+    .gcbtn.has { color: #93c5fd; }
+    .gcm { flex: 0 0 100%; display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--border); padding-top: 4px; }
+    .gc { font-size: 0.8rem; line-height: 1.35; word-break: break-word; }
+    .gc b { color: var(--text-muted); font-weight: 600; margin-right: 3px; }
+    .gcx { display: inline-block; min-height: 0; width: auto; vertical-align: baseline; padding: 0 6px; background: none; border: none; color: var(--text-muted); font-size: 0.8rem; }
+    .gcin { display: flex; gap: 5px; }
+    .gcin input { flex: 1; min-width: 0; min-height: 0; padding: 4px 8px; font-size: 0.85rem; }
+    .gcin button { flex: none; width: auto; min-height: 0; padding: 4px 12px; font-size: 0.8rem; }
     .gheart { flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 30px; }
     .gheart .heart { width: 28px; height: 28px; }
     .gheart .heart .ic { width: 16px; height: 16px; }
@@ -700,6 +709,7 @@
       async joinGathering(g, e, key, rec) { const r = this.gref(g, e + '/people/' + key); if (rec) await r.set(rec); else await r.remove(); },
       async removeGathering(g, e) { await this.gref(g, e).remove(); },
       async likeGathering(g, e, key, name) { const r = this.gref(g, e + '/likes/' + key); if (name) await r.set(name); else await r.remove(); },   // 行きたい（ハート）
+      async setComment(g, e, cid, rec) { const r = this.gref(g, e + '/comments/' + cid); if (rec) await r.set(rec); else await r.remove(); },   // コメント（集まりが消えるとき、いっしょに消える）
       async setGen(id, key, g) { const r = this.ref(id, 'rosterGen/' + key); if (g) await r.set(g); else await r.remove(); },   // 自分で選んだ代
       async addShop(id, key, name) { await this.ref(id, 'shops/' + key).set(name); },
       async removeShop(id, key) { await this.ref(id, 'shops/' + key).remove(); await this.ref(id, 'shopMin/' + key).remove(); await this.ref(id, 'shopUrl/' + key).remove(); await this.ref(id, 'hpShops/' + key).remove(); },
@@ -768,6 +778,12 @@
         this.gwriteAll(all);
       },
       async removeGathering(g, e) { const all = this.greadAll(); if (all[g]) { delete all[g][e]; this.gwriteAll(all); } },
+      async setComment(g, e, cid, rec) {
+        const all = this.greadAll(); if (!all[g] || !all[g][e]) return;
+        all[g][e].comments = all[g][e].comments || {};
+        if (rec) all[g][e].comments[cid] = rec; else delete all[g][e].comments[cid];
+        this.gwriteAll(all);
+      },
       async likeGathering(g, e, key, name) {
         const all = this.greadAll(); if (!all[g] || !all[g][e]) return;
         all[g][e].likes = all[g][e].likes || {};
@@ -1316,6 +1332,7 @@
           id, title: g.title, tag: GTAGS[g.tag] ? g.tag : 'other', at: g.at, cap: g.cap || 0, by: g.by, byName: g.byName,
           people: Object.entries(g.people || {}).map(([key, p]) => ({ key, name: p.name, t: p.t || 0 })).sort((a, b) => a.t - b.t || ja(a.name, b.name)),
           likes: Object.entries(g.likes || {}).map(([key, name]) => ({ key, name: String(name) })),
+          comments: Object.entries(g.comments || {}).filter(([, c]) => c && c.text).map(([cid, c]) => ({ cid, by: c.by, name: c.name, text: c.text, t: c.t || 0 })).sort((a, b) => a.t - b.t),
         }))
         .sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));   // 近い日ほど上
     }
@@ -1324,12 +1341,16 @@
     const fmtHm = ms => { const t = new Date(ms + 9 * 3600000); return `${pad2(t.getUTCHours())}:${pad2(t.getUTCMinutes())}`; };
     const fmtMdShort = ms => { const t = new Date(ms + 9 * 3600000); return `${t.getUTCMonth() + 1}/${t.getUTCDate()}`; };
     const fmtWd = ms => '日月火水木金土'[new Date(ms + 9 * 3600000).getUTCDay()];
+    const cmOpen = new Set(), cmDraft = {};   // コメント欄を開いている集まり／書きかけの文
     function renderGather() {
       const list = gatherEntries();
       $('gNow').textContent = list.length ? `${list.length}件` : '';
       $('badge2').hidden = !list.length; $('badge2').textContent = list.length;
       const box = $('gList');
       if (!list.length) { box.innerHTML = '<div class="none-txt">まだ集まりがありません</div>'; return; }
+      // 入力中に誰かが書き込んでも、書きかけの文と入力欄の位置を失わないようにする
+      const act = document.activeElement, typing = act && act.classList && act.classList.contains('gcinput') ? { id: act.closest('.gcard').dataset.id, pos: act.selectionStart } : null;
+      if (typing) cmDraft[typing.id] = act.value;
       const me = myKey(), today = jstYmd(Date.now());
       const card = g => {
         const joined = g.people.filter((p, i) => !g.cap || i < g.cap);
@@ -1346,16 +1367,28 @@
           ${sameDay ? `<div class="gtime">${fmtHm(g.at)}<small>から</small></div>` : `<div class="gtime later">${fmtMdShort(g.at)}<small>${fmtWd(g.at)} ${fmtHm(g.at)}から</small></div>`}
           <div class="gmain">
             <div class="gtop"><span class="gtag ${g.tag}">${esc(GTAGS[g.tag])}</span><span class="gtitle">${esc(g.title)}</span></div>
-            <div class="gline"><span class="gcount${full ? ' full' : ''}">${esc(count)}</span>${joined.map(p => chip(p, false)).join('') + waiting.map(p => chip(p, true)).join('')}</div>
+            <div class="gline"><span class="gcount${full ? ' full' : ''}">${esc(count)}</span>${joined.map(p => chip(p, false)).join('') + waiting.map(p => chip(p, true)).join('')}<button class="gcbtn${g.comments.length ? ' has' : ''}" data-act="cm">コメント${g.comments.length ? g.comments.length : ''}${cmOpen.has(g.id) ? '▲' : ''}</button></div>
           </div>
           <div class="gheart"><button class="heart${liked ? ' on' : ''}" data-act="like" title="${liked ? '行きたいを取り消す' : '行きたい'}" aria-pressed="${liked}">${ic('heart')}</button><span class="ccnt${g.likes.length ? ' has' : ''}" data-act="likers">${g.likes.length}</span></div>
           <div class="gbtns"><button class="gjoin${myIdx >= 0 ? ' sub' : ''}" data-act="join">${esc(label)}</button>${g.by === me ? '<button class="sub gdel" data-act="del">消す</button>' : ''}</div>
+          ${cmOpen.has(g.id) ? `<div class="gcm">${g.comments.map(c => `<div class="gc"><b>${esc(c.name)}</b> ${esc(c.text)}${c.by === me ? `<button class="gcx" data-act="cmdel" data-cid="${esc(c.cid)}" title="消す">×</button>` : ''}</div>`).join('')}<div class="gcin"><input class="gcinput" maxlength="100" placeholder="コメントを書く" autocomplete="off"><button class="gcsend" data-act="cmsend">送る</button></div></div>` : ''}
         </div>`;
       };
       const todayList = list.filter(g => jstYmd(g.at) <= today), laterList = list.filter(g => jstYmd(g.at) > today);
       const sec = (title, arr) => arr.length ? `<div class="gsec">${title}<span>${arr.length}件</span></div>` + arr.map(card).join('') : '';
       box.innerHTML = sec('今日', todayList) + sec('明日以降', laterList);
+      box.querySelectorAll('.gcinput').forEach(inp => { const id = inp.closest('.gcard').dataset.id; inp.value = cmDraft[id] || ''; });
+      if (typing) { const inp = box.querySelector(`.gcard[data-id="${CSS.escape(typing.id)}"] .gcinput`); if (inp) { inp.focus(); try { inp.setSelectionRange(typing.pos, typing.pos); } catch (e) {} } }
       renderSheet();   // 開いている一覧も、いまの内容に合わせる
+    }
+    function sendComment(id) {
+      const card = document.querySelector(`#gList .gcard[data-id="${CSS.escape(id)}"]`); if (!card || !gatherId) return;
+      const inp = card.querySelector('.gcinput');
+      const text = inp.value.replace(/\s+/g, ' ').trim().slice(0, 100);
+      if (!text) return;
+      const cid = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+      inp.value = ''; delete cmDraft[id];
+      backend.setComment(gatherId, id, cid, { by: myKey(), name: myName, text, t: Date.now() }).catch(e => toast('送れませんでした：' + (e.message || e), true));
     }
     function toggleLike(id) {
       const g = gatherEntries().find(x => x.id === id);
@@ -1950,8 +1983,13 @@
         if (b.dataset.act === 'like') { if (Date.now() < skipClickUntil) { skipClickUntil = 0; return; } toggleLike(id); }   // 長押しの直後の「押した」は無視する
         else if (b.dataset.act === 'likers') openSheet(id);
         else if (b.dataset.act === 'join') toggleJoin(id);
+        else if (b.dataset.act === 'cm') { if (cmOpen.has(id)) cmOpen.delete(id); else cmOpen.add(id); renderGather(); }
+        else if (b.dataset.act === 'cmsend') sendComment(id);
+        else if (b.dataset.act === 'cmdel') backend.setComment(gatherId, id, b.dataset.cid, null).catch(e => toast('消せませんでした：' + (e.message || e), true));
         else deleteGather(id);
       };
+      list.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('gcinput') && !e.isComposing) { e.preventDefault(); sendComment(e.target.closest('.gcard').dataset.id); } });
+      list.addEventListener('input', e => { if (e.target.classList.contains('gcinput')) cmDraft[e.target.closest('.gcard').dataset.id] = e.target.value; });
     })();
     $('apiLinkBtn').onclick = copyApiLink;
     $('secretNewBtn').onclick = renewSecret;
