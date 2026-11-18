@@ -252,8 +252,6 @@
     .chip.me { background: var(--blue-soft); border-color: rgba(59,130,246,0.3); font-weight: 700; }
     .none-txt { color: var(--text-muted); font-size: 0.8rem; }
 
-    .cands { display: flex; flex-direction: column; gap: 8px; }
-    .cand { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); }
     .heart { width: 40px; height: 40px; min-height: 0; padding: 0; flex: none; background: transparent; color: var(--text-muted); border: 1px solid var(--border-mid); border-radius: 50%; }
     .heart { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }   /* 長押しでメニューや選択が出ないように */
     .heart:active { background: var(--surface-2); }
@@ -276,12 +274,8 @@
     .heart .ic { width: 20px; height: 20px; }
     .heart.on { color: #fb7185; border-color: #fb7185; background: rgba(251,113,133,0.1); }
     .heart.on .ic { fill: currentColor; }
-    .cheart { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 40px; flex: none; }
     .ccnt { font-size: 0.75rem; line-height: 1; color: var(--text-muted); }
     .ccnt.has { color: #fb7185; font-weight: 700; }
-    .cmain { flex: 1; min-width: 0; }
-    .cname { font-size: 0.95rem; font-weight: 600; }
-    .cdel { width: 28px; height: 28px; min-height: 0; padding: 0; flex: none; background: transparent; color: var(--text-muted); border: 0; }
     /* 集まり */
     .glist { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
     #gForm { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
@@ -308,14 +302,14 @@
     .gcount { font-size: 0.75rem; color: var(--text-muted); margin-right: 2px; }
     .gcount.full { color: #fbbf24; font-weight: 700; }
     .chip.wait { opacity: .65; border-style: dashed; }
+    .gheart { flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 30px; }
+    .gheart .heart { width: 28px; height: 28px; }
+    .gheart .heart .ic { width: 16px; height: 16px; }
     .gbtns { flex: none; display: flex; flex-direction: column; gap: 3px; width: 64px; }
     .gbtns button { width: 100%; min-height: 0; padding: 4px 2px; font-size: 0.78rem; border-radius: 8px; }
     /* この画面の枠の余白をつめる */
     #pane2 .card { padding: 8px; margin-bottom: 6px; }
     #pane2 .card-title { margin-bottom: 4px; }
-    #pane2 .hint { margin: 0 0 4px; }
-    #pane2 .cand { padding: 5px 8px; gap: 8px; }
-    #pane2 .cands { gap: 4px; }
     .divider { border: 0; border-top: 1px solid var(--border); margin: var(--gap) 0; }
 
     /* トースト：操作したことを下に短く出す */
@@ -471,15 +465,6 @@
           <div class="grow"><button id="gCreate">つくる</button><button id="gCancel" class="sub">やめる</button></div>
         </div>
         <div class="glist" id="gList"></div>
-      </div>
-      <div class="card">
-        <p class="card-title"><span class="t"><svg class="ic"><use href="#i-glass"/></svg>二次会の候補</span><span class="card-title-count" id="afterNow"></span></p>
-        <p class="hint">ハートを長押しすると、押した人の一覧が出ます</p>
-        <input id="afterShop" placeholder="お店の名前を入れて追加" autocomplete="off">
-        <div class="sug" id="afterSug" hidden></div>
-        <div class="chips sim" id="afterSimilar" hidden></div>
-        <button id="afterShopBtn" class="sub dash" hidden></button>
-        <div class="cands" id="afterList"></div>
       </div>
       </div>
 
@@ -702,13 +687,6 @@
       // 部室にいる人（一次会・二次会の状況とは別。bushitsu/{名前のキー} = { name, t }）
       async setBushitsu(id, key, rec) { const r = this.ref(id, 'bushitsu/' + key); if (rec) await r.set(rec); else await r.remove(); },
       async removePerson(id, key) { await this.ref(id, 'people/' + key).remove(); },
-      // 二次会の候補と「行きたい」（ハート）。afterLikes/{候補のキー}/{人のキー} = その人の名前
-      async addAfterShop(id, key, name) { await this.ref(id, 'afterShops/' + key).set(name); },
-      async removeAfterShop(id, key) { await this.ref(id, 'afterShops/' + key).remove(); await this.ref(id, 'afterLikes/' + key).remove(); await this.ref(id, 'afterUrl/' + key).remove(); await this.ref(id, 'afterHp/' + key).remove(); },
-      async setLike(id, shopKey, personKey, name) {
-        const r = this.ref(id, 'afterLikes/' + shopKey + '/' + personKey);
-        if (name) await r.set(name); else await r.remove();
-      },
       // 集まり：gatherings/{合言葉から作った名前}/{集まりのID} = { title, tag, at, exp, cap, by, byName, people:{キー:{name,t}} }
       // 部屋（1日ごと）とは別の置き場所。開催日が過ぎるまで残る
       gref(g, sub) { return this.db.ref('gatherings/' + g + (sub ? '/' + sub : '')); },
@@ -720,6 +698,7 @@
       async setGathering(g, e, rec) { await this.gref(g, e).set(rec); },
       async joinGathering(g, e, key, rec) { const r = this.gref(g, e + '/people/' + key); if (rec) await r.set(rec); else await r.remove(); },
       async removeGathering(g, e) { await this.gref(g, e).remove(); },
+      async likeGathering(g, e, key, name) { const r = this.gref(g, e + '/likes/' + key); if (name) await r.set(name); else await r.remove(); },   // 行きたい（ハート）
       async setGen(id, key, g) { const r = this.ref(id, 'rosterGen/' + key); if (g) await r.set(g); else await r.remove(); },   // 自分で選んだ代
       async addShop(id, key, name) { await this.ref(id, 'shops/' + key).set(name); },
       async removeShop(id, key) { await this.ref(id, 'shops/' + key).remove(); await this.ref(id, 'shopMin/' + key).remove(); await this.ref(id, 'shopUrl/' + key).remove(); await this.ref(id, 'hpShops/' + key).remove(); },
@@ -768,25 +747,6 @@
         const all = this.read();
         if (all[id] && all[id].people) { delete all[id].people[key]; this.write(all); }
       },
-      async addAfterShop(id, key, name) {
-        const all = this.read(); if (!all[id]) return;
-        all[id].afterShops = all[id].afterShops || {}; all[id].afterShops[key] = name; this.write(all);
-      },
-      async removeAfterShop(id, key) {
-        const all = this.read(); if (!all[id]) return;
-        if (all[id].afterShops) delete all[id].afterShops[key];
-        if (all[id].afterLikes) delete all[id].afterLikes[key];
-        if (all[id].afterUrl) delete all[id].afterUrl[key];
-        if (all[id].afterHp) delete all[id].afterHp[key];
-        this.write(all);
-      },
-      async setLike(id, shopKey, personKey, name) {
-        const all = this.read(); if (!all[id]) return;
-        const likes = (all[id].afterLikes = all[id].afterLikes || {});
-        likes[shopKey] = likes[shopKey] || {};
-        if (name) likes[shopKey][personKey] = name; else delete likes[shopKey][personKey];
-        this.write(all);
-      },
       // 集まり（お試しモードは、1つの置き場所 demo に入れる）
       GKEY: STORE_PREFIX + 'demo_gath',
       greadAll() { try { return JSON.parse(localStorage.getItem(this.GKEY)) || {}; } catch (e) { return {}; } },
@@ -807,6 +767,12 @@
         this.gwriteAll(all);
       },
       async removeGathering(g, e) { const all = this.greadAll(); if (all[g]) { delete all[g][e]; this.gwriteAll(all); } },
+      async likeGathering(g, e, key, name) {
+        const all = this.greadAll(); if (!all[g] || !all[g][e]) return;
+        all[g][e].likes = all[g][e].likes || {};
+        if (name) all[g][e].likes[key] = name; else delete all[g][e].likes[key];
+        this.gwriteAll(all);
+      },
       async setGen(id, key, g) {
         const all = this.read(); if (!all[id]) return;
         all[id].rosterGen = all[id].rosterGen || {};
@@ -1286,95 +1252,10 @@
       render();
     }
 
-    // ---------- 二次会の候補と「行きたい」（ハート） ----------
-    function afterEntries() {
-      const shops = (roomData && roomData.afterShops) || {};
-      const likes = (roomData && roomData.afterLikes) || {};
-      return Object.entries(shops).map(([key, name]) => ({ key, name, likes: Object.entries(likes[key] || {}) }))
-        .sort((a, b) => b.likes.length - a.likes.length || ja(a.name, b.name));
-    }
-    async function addAfter(info) {
-      if (!roomId) return;
-      if (!info) {
-        const raw = $('afterShop').value.trim();
-        if (!raw) return;
-        if (/^https?:\/\//i.test(raw)) {
-          const m = parseMapsUrl(raw);
-          if (!m || m.error) { roomErr.textContent = (m && m.error) || 'URLを読み取れませんでした'; return; }
-          info = m;
-        } else info = { name: raw.replace(/\s+/g, ' ').slice(0, 20) };
-      }
-      const name = info.name.slice(0, 20);
-      const dup = afterEntries().find(c => norm(c.name) === norm(name));
-      const key = dup ? dup.key : mapKey(name);
-      try {
-        if (!dup) await backend.addAfterShop(roomId, key, name);
-        if (info.url) await backend.setLink(roomId, 'afterUrl', key, info.url);
-        if (!dup || !dup.likes.some(([k]) => k === myKey())) await backend.setLike(roomId, key, myKey(), myName);   // 出した人は、まず自分が行きたい
-      } catch (e) { roomErr.textContent = '追加できませんでした：' + (e.message || e); return; }
-      $('afterShop').value = ''; hideSuggest('afterSug'); toast(`${name}を二次会の候補に追加しました`);
-      renderAfter();
-    }
-    function toggleLike(key, liked) {
-      toast(liked ? '行きたいを取り消しました' : '行きたいを伝えました');
-      backend.setLike(roomId, key, myKey(), liked ? null : myName)
-        .catch(e => { roomErr.textContent = '送信に失敗しました：' + (e.message || e); });
-    }
-    let skipClickUntil = 0;
-    function renderAfter() {
-      if (!roomData) return;
-      const list = afterEntries();
-      $('afterNow').textContent = list.length ? `${list.length}件` : '';
-      const q = $('afterShop').value.trim();
-      const isUrl = /^https?:\/\//i.test(q);
-      const dup = !isUrl && list.some(c => norm(c.name) === norm(q));
-      renderSimilar('afterSimilar', q, list.map(c => c.name), name => addAfter({ name }));
-      $('afterShopBtn').hidden = !q || dup;
-      $('afterShopBtn').innerHTML = ic('plus') + (isUrl ? 'このURLのお店を候補に追加' : `「${esc(q)}」を名前だけで候補に追加`);
-      const box = $('afterList');
-      const top = box.scrollTop;
-      box.innerHTML = '';
-      list.forEach(c => {
-        const liked = c.likes.some(([k]) => k === myKey());
-        const row = document.createElement('div'); row.className = 'cand';
-        const h = document.createElement('button');
-        h.className = 'heart' + (liked ? ' on' : ''); h.title = liked ? '行きたいを取り消す' : '行きたい';
-        h.innerHTML = ic('heart'); h.setAttribute('aria-pressed', liked ? 'true' : 'false');
-        // 押す：行きたいの切り替え。長押し（0.5秒）：押した人の一覧が、下から上がってくる
-        const showLikers = () => openSheet(c.key);
-        let timer = null;
-        const stop = () => clearTimeout(timer);
-        h.addEventListener('pointerdown', () => { stop(); timer = setTimeout(() => { skipClickUntil = Date.now() + 800; showLikers(); }, 500); });
-        ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => h.addEventListener(ev, stop));
-        h.oncontextmenu = ev => ev.preventDefault();
-        h.onclick = () => { if (Date.now() < skipClickUntil) { skipClickUntil = 0; return; } toggleLike(c.key, liked); };   // 長押しの直後の「押した」は無視する
-        // ハートの下に、押した人数を出す（数字を押しても、名前を出せる）
-        const cnt = document.createElement('div'); cnt.className = 'ccnt' + (c.likes.length ? ' has' : '');
-        cnt.textContent = c.likes.length; cnt.onclick = showLikers;
-        const heart = document.createElement('div'); heart.className = 'cheart';
-        heart.append(h, cnt);
-        const main = document.createElement('div'); main.className = 'cmain';
-        const nm = document.createElement('div'); nm.className = 'cname'; nm.textContent = c.name;
-        const au = safeUrl(roomData.afterUrl && roomData.afterUrl[c.key]);
-        if (au) nm.appendChild(linkEl(au));
-        main.append(nm);
-        row.append(heart, main);
-        if (!c.likes.length) {   // だれも行きたくない候補は、まちがい追加を消せる
-          const d = document.createElement('button'); d.className = 'cdel'; d.title = '候補から消す'; d.innerHTML = ic('x');
-          d.onclick = () => { if (confirm(`「${c.name}」を候補から消しますか？`)) backend.removeAfterShop(roomId, c.key).catch(e => { roomErr.textContent = '消せませんでした：' + (e.message || e); }); };
-          row.appendChild(d);
-        }
-        box.appendChild(row);
-      });
-      box.scrollTop = top;
-      if (!list.length) box.innerHTML = '<div class="none-txt">まだ候補がありません</div>';
-      renderSheet();   // 開いている一覧も、いまの内容に合わせる
-    }
-
     // ---------- 行きたい人の一覧（下から上がってくるシート）----------
-    let sheetKey = null, sheetOpenedAt = 0;
-    function openSheet(key) {
-      sheetKey = key; sheetOpenedAt = Date.now();
+    let skipClickUntil = 0, sheetKey = null, sheetOpenedAt = 0;
+    function openSheet(id) {
+      sheetKey = id; sheetOpenedAt = Date.now();
       renderSheet();
       $('sheetBg').classList.add('show'); $('sheet').classList.add('show');
     }
@@ -1384,18 +1265,18 @@
     }
     function renderSheet() {
       if (!sheetKey) return;
-      const c = roomData ? afterEntries().find(x => x.key === sheetKey) : null;
-      if (!c) { closeSheet(); return; }   // 候補が消された
-      $('sheetSub').textContent = `${c.name}・${c.likes.length}人`;
+      const g = gatherEntries().find(x => x.id === sheetKey);
+      if (!g) { closeSheet(); return; }   // 集まりが消された
+      $('sheetSub').textContent = `${g.title}・${g.likes.length}人`;
       const box = $('sheetList');
       box.innerHTML = '';
-      c.likes.map(([k, n]) => ({ k, n })).sort((a, b) => ja(a.n, b.n)).forEach(({ k, n }) => {
-        const row = document.createElement('div'); row.className = 'who' + (k === myKey() ? ' me' : '');
+      g.likes.slice().sort((a, b) => ja(a.name, b.name)).forEach(({ key, name }) => {
+        const row = document.createElement('div'); row.className = 'who' + (key === myKey() ? ' me' : '');
         const av = document.createElement('span'); av.className = 'av'; av.innerHTML = ic('user');
-        const nm = document.createElement('span'); nm.textContent = n + (k === myKey() ? '（自分）' : '');
+        const nm = document.createElement('span'); nm.textContent = name + (key === myKey() ? '（自分）' : '');
         row.append(av, nm); box.appendChild(row);
       });
-      if (!c.likes.length) box.innerHTML = '<div class="none-txt">まだ誰も押していません</div>';
+      if (!g.likes.length) box.innerHTML = '<div class="none-txt">まだ誰も押していません</div>';
     }
 
     // ---------- 集まり（飲み会・卓球・その他。日時と、先着の人数つき） ----------
@@ -1433,6 +1314,7 @@
         .map(([id, g]) => ({
           id, title: g.title, tag: GTAGS[g.tag] ? g.tag : 'other', at: g.at, cap: g.cap || 0, by: g.by, byName: g.byName,
           people: Object.entries(g.people || {}).map(([key, p]) => ({ key, name: p.name, t: p.t || 0 })).sort((a, b) => a.t - b.t || ja(a.name, b.name)),
+          likes: Object.entries(g.likes || {}).map(([key, name]) => ({ key, name: String(name) })),
         }))
         .sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));   // 近い日ほど上
     }
@@ -1457,18 +1339,28 @@
         const label = myIdx < 0 ? (full ? '待ちに入る' : '参加')
           : (g.cap && myIdx >= g.cap ? `待ちをやめる` : 'やめる');
         const sameDay = jstYmd(g.at) <= today;
+        const liked = g.likes.some(l => l.key === me);
         return `<div class="gcard" data-id="${esc(g.id)}">
           <div class="gtime">${fmtHm(g.at)}${sameDay ? '' : `<small>${esc(fmtMd(g.at))}</small>`}</div>
           <div class="gmain">
             <div class="gtop"><span class="gtag ${g.tag}">${esc(GTAGS[g.tag])}</span><span class="gtitle">${esc(g.title)}</span></div>
             <div class="gline"><span class="gcount${full ? ' full' : ''}">${esc(count)}</span>${joined.map(p => chip(p, false)).join('') + waiting.map(p => chip(p, true)).join('')}</div>
           </div>
+          <div class="gheart"><button class="heart${liked ? ' on' : ''}" data-act="like" title="${liked ? '行きたいを取り消す' : '行きたい'}" aria-pressed="${liked}">${ic('heart')}</button><span class="ccnt${g.likes.length ? ' has' : ''}" data-act="likers">${g.likes.length}</span></div>
           <div class="gbtns"><button class="gjoin${myIdx >= 0 ? ' sub' : ''}" data-act="join">${esc(label)}</button>${g.by === me ? '<button class="sub gdel" data-act="del">消す</button>' : ''}</div>
         </div>`;
       };
       const todayList = list.filter(g => jstYmd(g.at) <= today), laterList = list.filter(g => jstYmd(g.at) > today);
       const sec = (title, arr) => arr.length ? `<div class="gsec">${title}<span>${arr.length}件</span></div>` + arr.map(card).join('') : '';
       box.innerHTML = sec('今日', todayList) + sec('明日以降', laterList);
+      renderSheet();   // 開いている一覧も、いまの内容に合わせる
+    }
+    function toggleLike(id) {
+      const g = gatherEntries().find(x => x.id === id);
+      if (!g || !gatherId) return;
+      const liked = g.likes.some(l => l.key === myKey());
+      toast(liked ? '行きたいを取り消しました' : '行きたいを伝えました');
+      backend.likeGathering(gatherId, id, myKey(), liked ? null : myName).catch(e => toast('送信に失敗しました：' + (e.message || e), true));
     }
     function toggleJoin(id) {
       const g = gatherEntries().find(x => x.id === id);
@@ -1701,9 +1593,8 @@
     }
 
     // 前に使ったお店を端末に覚えておく（名前・リンク）。次からは候補に出て、1タップで載せられる。
-    // 一次会のお店と二次会の候補は、別々に覚える（二次会の欄に、一次会のお店が出ないように）
+    // 一次会のお店を覚える
     let shopMemo = load('shops', {});    // 一次会：名前 → { url, at }
-    let afterMemo = load('afters', {});  // 二次会：名前 → { url, at }
     function rememberInto(memo, names, urls) {
       let changed = false;
       Object.entries(names || {}).forEach(([k, name]) => {
@@ -1716,8 +1607,6 @@
     function rememberShops() {
       const a = rememberInto(shopMemo, roomData.shops, roomData.shopUrl);
       if (a) { shopMemo = a; save('shops', shopMemo); }
-      const b = rememberInto(afterMemo, roomData.afterShops, roomData.afterUrl);
-      if (b) { afterMemo = b; save('afters', afterMemo); }
     }
 
     // 「いっしょに行く人」のチェック一覧
@@ -1797,7 +1686,6 @@
       const waiting = Object.entries(roomData.roster || {}).filter(([k]) => !people[k]).map(([, n]) => n).sort(ja);
       if (waiting.length) html += sec('', 'clock', 'まだ選んでいない', waiting.map(n => ({ key: '', name: n })));
       $('board').innerHTML = html;
-      renderAfter();
       const total = members.length + waiting.length, all = total > 0 && by.arrived.length === total;
       $('summary').textContent = all ? '全員そろいました' : `ロタ到着 ${by.arrived.length} / ${total}人`;
       $('summary').classList.toggle('ok', all);
@@ -1881,13 +1769,14 @@
       try { await backend.removePerson(roomId, myKey()); } catch (e) {}
       try { await backend.setBushitsu(roomId, myKey(), null); } catch (e) {}
       try { await backend.setGen(roomId, myKey(), null); } catch (e) {}
-      // 二次会の「行きたい」（ハート）も、この名前の分を消す。名前を変えたあとに、前の名前のハートが残らないように
-      const likes = (roomData && roomData.afterLikes) || {};
-      await Promise.all(Object.keys(likes).filter(sk => likes[sk] && likes[sk][myKey()])
-        .map(sk => backend.setLike(roomId, sk, myKey(), null).catch(() => {})));
-      // 集まりの参加も、この名前の分を消す。名前を変えたあとに、前の名前の参加が残らないように
-      if (gatherId) await Promise.all(gatherEntries().filter(g => g.people.some(p => p.key === myKey()))
-        .map(g => backend.joinGathering(gatherId, g.id, myKey(), null).catch(() => {})));
+      // 集まりの参加と行きたいも、この名前の分を消す。名前を変えたあとに、前の名前の分が残らないように
+      if (gatherId) {
+        const mine = gatherEntries();
+        await Promise.all([
+          ...mine.filter(g => g.people.some(p => p.key === myKey())).map(g => backend.joinGathering(gatherId, g.id, myKey(), null).catch(() => {})),
+          ...mine.filter(g => g.likes.some(l => l.key === myKey())).map(g => backend.likeGathering(gatherId, g.id, myKey(), null).catch(() => {})),
+        ]);
+      }
       cleanupRoomView();
       myName = ''; remove('name'); remove('nameTyped'); remove('lastRoom');   // 次に開いたとき、名前を選び直せる
       autoOpen = true; openToday();   // そのまま、名前登録の画面へ
@@ -2008,7 +1897,7 @@
     // 追加ボタンの連打で二重に追加されないようにする
     let busy = false;
     const once = fn => async (...a) => { if (busy) return; busy = true; try { return await fn(...a); } finally { busy = false; } };
-    addShop = once(addShop); addAfter = once(addAfter); createGather = once(createGather);
+    addShop = once(addShop); createGather = once(createGather);
     $('shopAddBtn').onclick = () => addShop();
     $('settingsBtn').onclick = openSettings;
     $('qBuGo').onclick = () => pressPlace('bgo');
@@ -2036,20 +1925,32 @@
     $('heroName').onclick = renameClick;   // 名前の部分をタップすると、名前を選び直せる
     $('shopChange').onclick = () => { shopEdit = true; renderShops(); $('shopChange').hidden = true; $('shopSearch').focus(); };
     setupSuggest('shopSearch', 'shopSug', info => addShop(info), () => shopEntries().map(s => s.name), () => shopMemo, REGULAR_SHOPS);
-    setupSuggest('afterShop', 'afterSug', info => addAfter(info), () => afterEntries().map(s => s.name), () => afterMemo, []);   // 二次会には、一次会の履歴・いつものお店を出さない
     $('withSearch').oninput = renderWith;
-    $('afterShopBtn').onclick = () => addAfter();
-    $('afterShop').oninput = renderAfter;
-    $('afterShop').onkeydown = e => { if (e.key === 'Enter') addAfter(); };
     $('gNewBtn').onclick = () => openGatherForm(true);
     $('gCancel').onclick = () => openGatherForm(false);
     $('gCreate').onclick = createGather;
     $('gTags').onclick = e => { const b = e.target.closest('.gtagbtn'); if (!b) return; gTag = b.dataset.tag; document.querySelectorAll('#gTags .gtagbtn').forEach(x => x.classList.toggle('on', x === b)); };
-    $('gList').onclick = e => {
-      const b = e.target.closest('button[data-act]'); if (!b) return;
-      const id = b.closest('.gcard').dataset.id;
-      if (b.dataset.act === 'join') toggleJoin(id); else deleteGather(id);
-    };
+    // ハート：押す＝行きたいの切り替え。長押し（0.5秒）か数字をタップ＝押した人の一覧
+    (() => {
+      const list = $('gList');
+      let timer = null;
+      const stop = () => clearTimeout(timer);
+      list.addEventListener('pointerdown', e => {
+        const h = e.target.closest('.heart'); if (!h) return;
+        const id = h.closest('.gcard').dataset.id;
+        stop(); timer = setTimeout(() => { skipClickUntil = Date.now() + 800; openSheet(id); }, 500);
+      });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => list.addEventListener(ev, stop));
+      list.addEventListener('contextmenu', e => { if (e.target.closest('.heart')) e.preventDefault(); });
+      list.onclick = e => {
+        const b = e.target.closest('[data-act]'); if (!b) return;
+        const id = b.closest('.gcard').dataset.id;
+        if (b.dataset.act === 'like') { if (Date.now() < skipClickUntil) { skipClickUntil = 0; return; } toggleLike(id); }   // 長押しの直後の「押した」は無視する
+        else if (b.dataset.act === 'likers') openSheet(id);
+        else if (b.dataset.act === 'join') toggleJoin(id);
+        else deleteGather(id);
+      };
+    })();
     $('apiLinkBtn').onclick = copyApiLink;
     $('secretNewBtn').onclick = renewSecret;
     $('apiSaveBtn').onclick = () => { if (saveApi()) $('homeErr').textContent = '保存しました'; };
