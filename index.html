@@ -705,7 +705,7 @@
       // 部室にいる人（一次会・二次会の状況とは別。bushitsu/{名前のキー} = { name, t }）
       async setBushitsu(id, key, rec) { const r = this.ref(id, 'bushitsu/' + key); if (rec) await r.set(rec); else await r.remove(); },
       async removePerson(id, key) { await this.ref(id, 'people/' + key).remove(); },
-      // イベント：gatherings/{合言葉から作った名前}/{イベントのID} = { title, tag, at, exp, cap, by, byName, people:{キー:{name,t}} }
+      // イベント：gatherings/{合言葉から作った名前}/{イベントのID} = { title, tag, at, exp, cap, by, byName, likes:{キー:{name,t}}, comments:{…} }
       // 部屋（1日ごと）とは別の置き場所。開催日が過ぎるまで残る
       gref(g, sub) { return this.db.ref('gatherings/' + g + (sub ? '/' + sub : '')); },
       watchGatherings(g, cb) {
@@ -714,9 +714,8 @@
         return () => r.off('value', fn);
       },
       async setGathering(g, e, rec) { await this.gref(g, e).set(rec); },
-      async joinGathering(g, e, key, rec) { const r = this.gref(g, e + '/people/' + key); if (rec) await r.set(rec); else await r.remove(); },
       async removeGathering(g, e) { await this.gref(g, e).remove(); },
-      async likeGathering(g, e, key, name) { const r = this.gref(g, e + '/likes/' + key); if (name) await r.set(name); else await r.remove(); },   // 行きたい（ハート）
+      async likeGathering(g, e, key, rec) { const r = this.gref(g, e + '/likes/' + key); if (rec) await r.set(rec); else await r.remove(); },   // 行きたい（ハート）
       async setComment(g, e, cid, rec) { const r = this.gref(g, e + '/comments/' + cid); if (rec) await r.set(rec); else await r.remove(); },   // コメント（イベントが消えるとき、いっしょに消える）
       async setGen(id, key, g) { const r = this.ref(id, 'rosterGen/' + key); if (g) await r.set(g); else await r.remove(); },   // 自分で選んだ代
       async addShop(id, key, name) { await this.ref(id, 'shops/' + key).set(name); },
@@ -779,12 +778,6 @@
         return () => { this.glisteners = this.glisteners.filter(y => y !== x); };
       },
       async setGathering(g, e, rec) { const all = this.greadAll(); all[g] = all[g] || {}; all[g][e] = rec; this.gwriteAll(all); },
-      async joinGathering(g, e, key, rec) {
-        const all = this.greadAll(); if (!all[g] || !all[g][e]) return;
-        all[g][e].people = all[g][e].people || {};
-        if (rec) all[g][e].people[key] = rec; else delete all[g][e].people[key];
-        this.gwriteAll(all);
-      },
       async removeGathering(g, e) { const all = this.greadAll(); if (all[g]) { delete all[g][e]; this.gwriteAll(all); } },
       async setComment(g, e, cid, rec) {
         const all = this.greadAll(); if (!all[g] || !all[g][e]) return;
@@ -792,10 +785,10 @@
         if (rec) all[g][e].comments[cid] = rec; else delete all[g][e].comments[cid];
         this.gwriteAll(all);
       },
-      async likeGathering(g, e, key, name) {
+      async likeGathering(g, e, key, rec) {
         const all = this.greadAll(); if (!all[g] || !all[g][e]) return;
         all[g][e].likes = all[g][e].likes || {};
-        if (name) all[g][e].likes[key] = name; else delete all[g][e].likes[key];
+        if (rec) all[g][e].likes[key] = rec; else delete all[g][e].likes[key];
         this.gwriteAll(all);
       },
       async setGen(id, key, g) {
@@ -1321,23 +1314,21 @@
         if (!g.comments.length) box.innerHTML = '<div class="none-txt">まだコメントがありません</div>';
         return;
       }
-      $('sheetTitle').textContent = '参加と行きたい';
+      $('sheetTitle').textContent = '行きたい人';
       $('sheetSub').textContent = g.title;
-      const joined = g.people.filter((p, i) => !g.cap || i < g.cap), waiting = g.cap ? g.people.slice(g.cap) : [];
       const part = (title, list) => {
         if (!list.length) return;
         const h = document.createElement('div'); h.className = 'sh'; h.textContent = `${title} ${list.length}人`; box.appendChild(h);
-        list.slice().forEach(({ key, name }) => {
+        list.forEach(({ key, name }) => {
           const row = document.createElement('div'); row.className = 'who' + (key === myKey() ? ' me' : '');
           const av = document.createElement('span'); av.className = 'av'; av.innerHTML = ic('user');
           const nm = document.createElement('span'); nm.textContent = name + (key === myKey() ? '（自分）' : '');
           row.append(av, nm); box.appendChild(row);
         });
       };
-      part(g.cap ? `参加（先着${g.cap}人）` : '参加', joined);
-      part('キャンセル待ち', waiting);
-      part('行きたい', g.likes.slice().sort((x, y) => ja(x.name, y.name)));
-      if (!box.children.length) box.innerHTML = '<div class="none-txt">まだ誰もいません</div>';
+      if (g.cap) { part(`先着${g.cap}人`, g.likes.slice(0, g.cap)); part('キャンセル待ち', g.likes.slice(g.cap)); }
+      else part('行きたい', g.likes);
+      if (!box.children.length) box.innerHTML = '<div class="none-txt">まだ誰も押していません</div>';
     }
 
     // ---------- イベント（飲み会・卓球・その他。日時と、先着の人数つき） ----------
@@ -1374,8 +1365,7 @@
         .filter(([, g]) => g && g.title && g.at && g.exp > Date.now())
         .map(([id, g]) => ({
           id, title: g.title, tag: GTAGS[g.tag] ? g.tag : 'other', at: g.at, cap: g.cap || 0, by: g.by, byName: g.byName,
-          people: Object.entries(g.people || {}).map(([key, p]) => ({ key, name: p.name, t: p.t || 0 })).sort((a, b) => a.t - b.t || ja(a.name, b.name)),
-          likes: Object.entries(g.likes || {}).map(([key, name]) => ({ key, name: String(name) })),
+          likes: Object.entries(g.likes || {}).map(([key, v]) => typeof v === 'string' ? { key, name: v, t: 0 } : { key, name: String((v && v.name) || ''), t: (v && v.t) || 0 }).sort((a, b) => a.t - b.t || ja(a.name, b.name)),   // 押した順
           comments: Object.entries(g.comments || {}).filter(([, c]) => c && c.text).map(([cid, c]) => ({ cid, by: c.by, name: c.name, text: c.text, t: c.t || 0 })).sort((a, b) => a.t - b.t),
         }))
         .sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));   // 近い日ほど上
@@ -1393,24 +1383,20 @@
       if (!list.length) { box.innerHTML = '<div class="none-txt">まだイベントがありません</div>'; return; }
       const me = myKey(), today = jstYmd(Date.now());
       const card = g => {
-        const joined = g.people.filter((p, i) => !g.cap || i < g.cap);
-        const waiting = g.cap ? g.people.slice(g.cap) : [];
-        const myIdx = g.people.findIndex(p => p.key === me);
-        const full = !!g.cap && g.people.length >= g.cap;
-        const count = (g.cap ? `${joined.length}/${g.cap}人` : `${joined.length}人`) + (full ? '・満員' : '') + (waiting.length ? `・待ち${waiting.length}` : '');
-        const label = myIdx < 0 ? (full ? '待ちに入る' : '参加')
-          : (g.cap && myIdx >= g.cap ? `待ちをやめる` : 'やめる');
+        const inN = g.cap ? Math.min(g.likes.length, g.cap) : g.likes.length, waitN = g.cap ? Math.max(0, g.likes.length - g.cap) : 0;
+        const full = !!g.cap && g.likes.length >= g.cap;
+        const count = g.cap ? `${inN}/${g.cap}人` + (full ? '・満員' : '') + (waitN ? `・待ち${waitN}` : '') : '';   // 先着の人数を決めたイベントだけ出す
         const sameDay = jstYmd(g.at) <= today;
         const liked = g.likes.some(l => l.key === me);
         return `<div class="gcard" data-id="${esc(g.id)}">
           ${sameDay ? `<div class="gtime">${fmtHm(g.at)}<small>から</small></div>` : `<div class="gtime later">${fmtMdShort(g.at)}<small>${fmtWd(g.at)} ${fmtHm(g.at)}から</small></div>`}
           <div class="gmain">
             <div class="gtop"><span class="gtag ${g.tag}">${esc(GTAGS[g.tag])}</span><span class="gtitle">${esc(g.title)}</span></div>
-            <div class="gline"><span class="gcount${full ? ' full' : ''}" data-act="likers">${esc(count)}</span></div>
+            ${count ? `<div class="gline"><span class="gcount${full ? ' full' : ''}" data-act="likers">${esc(count)}</span></div>` : ''}
           </div>
           <div class="gheart"><button class="heart${liked ? ' on' : ''}" data-act="like" title="${liked ? '行きたいを取り消す' : '行きたい'}" aria-pressed="${liked}">${ic('heart')}</button><span class="ccnt${g.likes.length ? ' has' : ''}" data-act="likers">${g.likes.length}</span></div>
           <div class="gheart"><button class="heart chatb${g.comments.length ? ' has' : ''}" data-act="cm" title="コメント">${ic('chat')}</button><span class="ccnt${g.comments.length ? ' has' : ''}" data-act="cmsheet">${g.comments.length}</span></div>
-          <div class="gbtns"><button class="gjoin${myIdx >= 0 ? ' sub' : ''}" data-act="join">${esc(label)}</button>${g.by === me ? '<button class="sub gdel" data-act="del">消す</button>' : ''}</div>
+          ${g.by === me ? '<div class="gbtns"><button class="sub gdel" data-act="del">消す</button></div>' : ''}
         </div>`;
       };
       const todayList = list.filter(g => jstYmd(g.at) <= today), laterList = list.filter(g => jstYmd(g.at) > today);
@@ -1430,22 +1416,14 @@
       const g = gatherEntries().find(x => x.id === id);
       if (!g || !gatherId) return;
       const liked = g.likes.some(l => l.key === myKey());
-      toast(liked ? '行きたいを取り消しました' : '行きたいを伝えました');
-      backend.likeGathering(gatherId, id, myKey(), liked ? null : myName).catch(e => toast('送信に失敗しました：' + (e.message || e), true));
-    }
-    function toggleJoin(id) {
-      const g = gatherEntries().find(x => x.id === id);
-      if (!g || !gatherId) return;
-      const joined = g.people.some(p => p.key === myKey());
-      const full = !!g.cap && g.people.length >= g.cap;
-      backend.joinGathering(gatherId, id, myKey(), joined ? null : { name: myName, t: Date.now() })
-        .then(() => toast(joined ? '参加をやめました' : (full ? 'キャンセル待ちに入りました' : '参加を伝えました')))
-        .catch(e => toast('送信に失敗しました：' + (e.message || e), true));
+      const full = !!g.cap && g.likes.length >= g.cap;
+      toast(liked ? '行きたいを取り消しました' : (full ? '満員なので、キャンセル待ちに入りました' : '行きたいを伝えました'));
+      backend.likeGathering(gatherId, id, myKey(), liked ? null : { name: myName, t: Date.now() }).catch(e => toast('送信に失敗しました：' + (e.message || e), true));
     }
     function deleteGather(id) {
       const g = gatherEntries().find(x => x.id === id);
       if (!g || g.by !== myKey()) return;   // つくった本人だけ
-      if (!confirm(`「${g.title}」を消しますか？参加している ${g.people.length}人の分も消えます。`)) return;
+      if (!confirm(`「${g.title}」を消しますか？行きたいを押した ${g.likes.length}人の分と、コメントも消えます。`)) return;
       backend.removeGathering(gatherId, id).then(() => toast('消しました')).catch(e => toast('消せませんでした：' + (e.message || e), true));
     }
     function openGatherForm(on) {
@@ -1475,7 +1453,7 @@
       const cap = capRaw ? Math.floor(+capRaw) : 0;
       if (capRaw && !(cap >= 1 && cap <= 200)) { toast('先着の人数は、1〜200で入れてください', true); return; }
       const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      const rec = { title, tag: gTag, at, exp: Math.max(boardDay(at).expiresAt, at + 3 * 3600000), by: myKey(), byName: myName, created: Date.now(), people: { [myKey()]: { name: myName, t: Date.now() } } };
+      const rec = { title, tag: gTag, at, exp: Math.max(boardDay(at).expiresAt, at + 3 * 3600000), by: myKey(), byName: myName, created: Date.now(), likes: { [myKey()]: { name: myName, t: Date.now() } } };
       if (cap) rec.cap = cap;
       try { await backend.setGathering(gatherId, id, rec); }
       catch (e) { toast('つくれませんでした：' + (e.message || e), true); return; }
@@ -1850,7 +1828,6 @@
       if (gatherId) {
         const mine = gatherEntries();
         await Promise.all([
-          ...mine.filter(g => g.people.some(p => p.key === myKey())).map(g => backend.joinGathering(gatherId, g.id, myKey(), null).catch(() => {})),
           ...mine.filter(g => g.likes.some(l => l.key === myKey())).map(g => backend.likeGathering(gatherId, g.id, myKey(), null).catch(() => {})),
         ]);
       }
@@ -2029,7 +2006,6 @@
         if (b.dataset.act === 'like') { if (Date.now() < skipClickUntil) { skipClickUntil = 0; return; } toggleLike(id); }   // 長押しの直後の「押した」は無視する
         else if (b.dataset.act === 'likers') openSheet(id);
         else if (b.dataset.act === 'cmsheet' || b.dataset.act === 'cm') openSheet(id, 'cm');   // 単押しも長押しも、同じ枠
-        else if (b.dataset.act === 'join') toggleJoin(id);
         else deleteGather(id);
       };
     })();

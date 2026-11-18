@@ -8,11 +8,8 @@
         "$e": {
           ".write": "auth != null && $g.matches(/^g_[0-9a-f]{16}$/) && $e.matches(/^[0-9a-z]{6,24}$/)",
           ".validate": "newData.hasChildren(['title', 'tag', 'at', 'exp', 'by']) && newData.child('title').isString() && newData.child('title').val().length >= 1 && newData.child('title').val().length <= 30 && (newData.child('tag').val() === 'nomi' || newData.child('tag').val() === 'takkyu' || newData.child('tag').val() === 'other') && newData.child('at').isNumber() && newData.child('exp').isNumber() && newData.child('by').isString() && newData.child('by').val().length <= 30 && (!newData.hasChild('byName') || (newData.child('byName').isString() && newData.child('byName').val().length <= 30)) && (!newData.hasChild('cap') || (newData.child('cap').isNumber() && newData.child('cap').val() >= 1 && newData.child('cap').val() <= 200))",
-          "people": {
-            "$k": { ".validate": "newData.hasChildren(['name', 't']) && newData.child('name').isString() && newData.child('name').val().length <= 30 && newData.child('t').isNumber()" }
-          },
           "likes": {
-            "$k": { ".validate": "newData.isString() && newData.val().length <= 30" }
+            "$k": { ".validate": "(newData.isString() && newData.val().length <= 30) || (newData.hasChildren(['name', 't']) && newData.child('name').isString() && newData.child('name').val().length <= 30 && newData.child('t').isNumber())" }
           },
           "comments": {
             "$c": { ".validate": "newData.hasChildren(['by', 'name', 'text', 't']) && newData.child('by').isString() && newData.child('by').val().length <= 30 && newData.child('name').isString() && newData.child('name').val().length <= 30 && newData.child('text').isString() && newData.child('text').val().length >= 1 && newData.child('text').val().length <= 100 && newData.child('t').isNumber()" }
