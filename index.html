@@ -311,6 +311,7 @@
     .gheart .heart.chatb .ic { width: 17px; height: 17px; }
     .sheet-list .cmrow { align-items: flex-start; }
     .sheet-list .cmbody { flex: 1; min-width: 0; word-break: break-word; line-height: 1.4; }
+    .sheet-list .cmtime { flex: none; align-self: center; font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
     .sheet-list .cmbody b { color: var(--text-muted); font-weight: 600; margin-right: 2px; }
     .gcx { display: inline-block; min-height: 0; width: auto; vertical-align: baseline; padding: 0 6px; background: none; border: none; color: var(--text-muted); font-size: 0.8rem; }
     .gheart { flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 30px; }
@@ -1301,6 +1302,11 @@
           const nm = document.createElement('b'); nm.textContent = c.name;
           body.append(nm, document.createTextNode(' ' + c.text));
           row.append(av, body);
+          if (c.t) {   // 書き込んだ時間（今日なら時刻だけ、ほかの日は日付つき）
+            const tm = document.createElement('span'); tm.className = 'cmtime';
+            tm.textContent = jstYmd(c.t) === jstYmd(Date.now()) ? fmtHm(c.t) : `${fmtMdShort(c.t)} ${fmtHm(c.t)}`;
+            row.appendChild(tm);
+          }
           if (c.by === myKey()) {
             const x = document.createElement('button'); x.className = 'gcx'; x.textContent = '×'; x.title = '消す';
             x.onclick = () => backend.setComment(gatherId, g.id, c.cid, null).catch(e => toast('消せませんでした：' + (e.message || e), true));
