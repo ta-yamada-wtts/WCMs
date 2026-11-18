@@ -276,7 +276,7 @@
     .heart.on .ic { fill: currentColor; }
     .ccnt { font-size: 0.75rem; line-height: 1; color: var(--text-muted); }
     .ccnt.has { color: #fb7185; font-weight: 700; }
-    /* 集まり */
+    /* イベント */
     .glist { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
     #gForm { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
     #gForm[hidden] { display: none; }
@@ -466,8 +466,8 @@
 
       <div class="pane" id="pane2" hidden>
       <div class="card">
-        <p class="card-title"><span class="t"><svg class="ic"><use href="#i-users"/></svg>集まり</span><span class="card-title-count" id="gNow"></span></p>
-        <button id="gNewBtn" class="sub dash"><svg class="ic"><use href="#i-plus"/></svg>集まりをつくる</button>
+        <p class="card-title"><span class="t"><svg class="ic"><use href="#i-users"/></svg>イベント</span><span class="card-title-count" id="gNow"></span></p>
+        <button id="gNewBtn" class="sub dash"><svg class="ic"><use href="#i-plus"/></svg>イベントをつくる</button>
         <div id="gForm" hidden>
           <div class="gtags" id="gTags">
             <button type="button" class="gtagbtn on" data-tag="nomi">飲み会</button>
@@ -526,7 +526,7 @@
   <nav class="bnav" id="bnav" aria-label="画面の切り替え">
     <button data-tab="0" class="on"><svg class="ic"><use href="#i-home"/></svg><span>いま</span></button>
     <button data-tab="1"><svg class="ic"><use href="#i-fork"/></svg><span>一次会</span></button>
-    <button data-tab="2"><svg class="ic"><use href="#i-users"/></svg><span>集まり<b class="badge" id="badge2" hidden></b></span></button>
+    <button data-tab="2"><svg class="ic"><use href="#i-users"/></svg><span>イベント<b class="badge" id="badge2" hidden></b></span></button>
     <button data-tab="3"><svg class="ic"><use href="#i-users"/></svg><span>みんなの状況<b class="badge" id="badge3" hidden></b></span></button>
   </nav>
 
@@ -703,7 +703,7 @@
       // 部室にいる人（一次会・二次会の状況とは別。bushitsu/{名前のキー} = { name, t }）
       async setBushitsu(id, key, rec) { const r = this.ref(id, 'bushitsu/' + key); if (rec) await r.set(rec); else await r.remove(); },
       async removePerson(id, key) { await this.ref(id, 'people/' + key).remove(); },
-      // 集まり：gatherings/{合言葉から作った名前}/{集まりのID} = { title, tag, at, exp, cap, by, byName, people:{キー:{name,t}} }
+      // イベント：gatherings/{合言葉から作った名前}/{イベントのID} = { title, tag, at, exp, cap, by, byName, people:{キー:{name,t}} }
       // 部屋（1日ごと）とは別の置き場所。開催日が過ぎるまで残る
       gref(g, sub) { return this.db.ref('gatherings/' + g + (sub ? '/' + sub : '')); },
       watchGatherings(g, cb) {
@@ -715,7 +715,7 @@
       async joinGathering(g, e, key, rec) { const r = this.gref(g, e + '/people/' + key); if (rec) await r.set(rec); else await r.remove(); },
       async removeGathering(g, e) { await this.gref(g, e).remove(); },
       async likeGathering(g, e, key, name) { const r = this.gref(g, e + '/likes/' + key); if (name) await r.set(name); else await r.remove(); },   // 行きたい（ハート）
-      async setComment(g, e, cid, rec) { const r = this.gref(g, e + '/comments/' + cid); if (rec) await r.set(rec); else await r.remove(); },   // コメント（集まりが消えるとき、いっしょに消える）
+      async setComment(g, e, cid, rec) { const r = this.gref(g, e + '/comments/' + cid); if (rec) await r.set(rec); else await r.remove(); },   // コメント（イベントが消えるとき、いっしょに消える）
       async setGen(id, key, g) { const r = this.ref(id, 'rosterGen/' + key); if (g) await r.set(g); else await r.remove(); },   // 自分で選んだ代
       async addShop(id, key, name) { await this.ref(id, 'shops/' + key).set(name); },
       async removeShop(id, key) { await this.ref(id, 'shops/' + key).remove(); await this.ref(id, 'shopMin/' + key).remove(); await this.ref(id, 'shopUrl/' + key).remove(); await this.ref(id, 'hpShops/' + key).remove(); },
@@ -764,7 +764,7 @@
         const all = this.read();
         if (all[id] && all[id].people) { delete all[id].people[key]; this.write(all); }
       },
-      // 集まり（お試しモードは、1つの置き場所 demo に入れる）
+      // イベント（お試しモードは、1つの置き場所 demo に入れる）
       GKEY: STORE_PREFIX + 'demo_gath',
       greadAll() { try { return JSON.parse(localStorage.getItem(this.GKEY)) || {}; } catch (e) { return {}; } },
       gwriteAll(all) { localStorage.setItem(this.GKEY, JSON.stringify(all)); this.gnotify(); },
@@ -1289,7 +1289,7 @@
     function renderSheet() {
       if (!sheetKey) return;
       const g = gatherEntries().find(x => x.id === sheetKey);
-      if (!g) { closeSheet(); return; }   // 集まりが消された
+      if (!g) { closeSheet(); return; }   // イベントが消された
       const box = $('sheetList');
       const cm = sheetMode === 'cm';
       $('sheetTitle').textContent = cm ? 'コメント' : '行きたい人';
@@ -1329,7 +1329,7 @@
       if (!g.likes.length) box.innerHTML = '<div class="none-txt">まだ誰も押していません</div>';
     }
 
-    // ---------- 集まり（飲み会・卓球・その他。日時と、先着の人数つき） ----------
+    // ---------- イベント（飲み会・卓球・その他。日時と、先着の人数つき） ----------
     //  部屋（1日ごと）とは別に、開催日が過ぎるまで残る。置き場所の名前は合言葉から作る（外の人には分からない）
     const GTAGS = { nomi: '飲み会', takkyu: '卓球', other: 'その他' };
     let gatherId = null, gatherData = null, unwatchG = null, gTag = 'nomi';
@@ -1379,7 +1379,7 @@
       $('gNow').textContent = list.length ? `${list.length}件` : '';
       $('badge2').hidden = !list.length; $('badge2').textContent = list.length;
       const box = $('gList');
-      if (!list.length) { box.innerHTML = '<div class="none-txt">まだ集まりがありません</div>'; return; }
+      if (!list.length) { box.innerHTML = '<div class="none-txt">まだイベントがありません</div>'; return; }
       const me = myKey(), today = jstYmd(Date.now());
       const card = g => {
         const joined = g.people.filter((p, i) => !g.cap || i < g.cap);
@@ -1463,7 +1463,7 @@
       if (cap) rec.cap = cap;
       try { await backend.setGathering(gatherId, id, rec); }
       catch (e) { toast('つくれませんでした：' + (e.message || e), true); return; }
-      openGatherForm(false); toast('集まりをつくりました');
+      openGatherForm(false); toast('イベントをつくりました');
     }
 
     // 自分のカードのボタン：お店・移動中・到着を1タップで切り替える（押した状況が青/黄/緑に塗られる）
@@ -1830,7 +1830,7 @@
       try { await backend.removePerson(roomId, myKey()); } catch (e) {}
       try { await backend.setBushitsu(roomId, myKey(), null); } catch (e) {}
       try { await backend.setGen(roomId, myKey(), null); } catch (e) {}
-      // 集まりの参加と行きたいも、この名前の分を消す。名前を変えたあとに、前の名前の分が残らないように
+      // イベントの参加と行きたいも、この名前の分を消す。名前を変えたあとに、前の名前の分が残らないように
       if (gatherId) {
         const mine = gatherEntries();
         await Promise.all([
