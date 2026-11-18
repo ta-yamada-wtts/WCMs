@@ -270,6 +270,7 @@
     .sheet-list .who { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-top: 1px solid var(--border); font-size: 0.95rem; }
     .sheet-list .who .av { width: 36px; height: 36px; border-radius: 50%; background: var(--surface-2); color: var(--text-muted); display: flex; align-items: center; justify-content: center; flex: none; }
     .sheet-list .who.me { font-weight: 700; }
+    .sheet-list .sh { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); padding: 10px 4px 2px; }
     .sheet-list .none-txt { padding: 16px 4px; text-align: center; }
     .heart .ic { width: 20px; height: 20px; }
     .heart.on { color: #fb7185; border-color: #fb7185; background: rgba(251,113,133,0.1); }
@@ -300,7 +301,7 @@
     .gtitle { font-size: 0.95rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .gline { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
     .gline .chip { padding: 0 6px; font-size: 0.75rem; line-height: 1.5; }
-    .gcount { font-size: 0.75rem; color: var(--text-muted); margin-right: 2px; }
+    .gcount { cursor: pointer; font-size: 0.75rem; color: var(--text-muted); margin-right: 2px; }
     .gcount.full { color: #fbbf24; font-weight: 700; }
     .chip.wait { opacity: .65; border-style: dashed; }
     .chatb.has { color: #93c5fd; border-color: rgba(147,197,253,0.5); }
@@ -1320,14 +1321,23 @@
         if (!g.comments.length) box.innerHTML = '<div class="none-txt">まだコメントがありません</div>';
         return;
       }
-      $('sheetSub').textContent = `${g.title}・${g.likes.length}人`;
-      g.likes.slice().sort((a, b) => ja(a.name, b.name)).forEach(({ key, name }) => {
-        const row = document.createElement('div'); row.className = 'who' + (key === myKey() ? ' me' : '');
-        const av = document.createElement('span'); av.className = 'av'; av.innerHTML = ic('user');
-        const nm = document.createElement('span'); nm.textContent = name + (key === myKey() ? '（自分）' : '');
-        row.append(av, nm); box.appendChild(row);
-      });
-      if (!g.likes.length) box.innerHTML = '<div class="none-txt">まだ誰も押していません</div>';
+      $('sheetTitle').textContent = '参加と行きたい';
+      $('sheetSub').textContent = g.title;
+      const joined = g.people.filter((p, i) => !g.cap || i < g.cap), waiting = g.cap ? g.people.slice(g.cap) : [];
+      const part = (title, list) => {
+        if (!list.length) return;
+        const h = document.createElement('div'); h.className = 'sh'; h.textContent = `${title} ${list.length}人`; box.appendChild(h);
+        list.slice().forEach(({ key, name }) => {
+          const row = document.createElement('div'); row.className = 'who' + (key === myKey() ? ' me' : '');
+          const av = document.createElement('span'); av.className = 'av'; av.innerHTML = ic('user');
+          const nm = document.createElement('span'); nm.textContent = name + (key === myKey() ? '（自分）' : '');
+          row.append(av, nm); box.appendChild(row);
+        });
+      };
+      part(g.cap ? `参加（先着${g.cap}人）` : '参加', joined);
+      part('キャンセル待ち', waiting);
+      part('行きたい', g.likes.slice().sort((x, y) => ja(x.name, y.name)));
+      if (!box.children.length) box.innerHTML = '<div class="none-txt">まだ誰もいません</div>';
     }
 
     // ---------- イベント（飲み会・卓球・その他。日時と、先着の人数つき） ----------
@@ -1388,7 +1398,6 @@
         const myIdx = g.people.findIndex(p => p.key === me);
         const full = !!g.cap && g.people.length >= g.cap;
         const count = (g.cap ? `${joined.length}/${g.cap}人` : `${joined.length}人`) + (full ? '・満員' : '') + (waiting.length ? `・待ち${waiting.length}` : '');
-        const chip = (p, wait) => `<span class="chip${wait ? ' wait' : ''}${p.key === me ? ' me' : ''}">${esc(p.name)}${p.key === me && wait ? '（自分・待ち）' : p.key === me ? '（自分）' : wait ? '（待ち）' : ''}</span>`;
         const label = myIdx < 0 ? (full ? '待ちに入る' : '参加')
           : (g.cap && myIdx >= g.cap ? `待ちをやめる` : 'やめる');
         const sameDay = jstYmd(g.at) <= today;
@@ -1397,7 +1406,7 @@
           ${sameDay ? `<div class="gtime">${fmtHm(g.at)}<small>から</small></div>` : `<div class="gtime later">${fmtMdShort(g.at)}<small>${fmtWd(g.at)} ${fmtHm(g.at)}から</small></div>`}
           <div class="gmain">
             <div class="gtop"><span class="gtag ${g.tag}">${esc(GTAGS[g.tag])}</span><span class="gtitle">${esc(g.title)}</span></div>
-            <div class="gline"><span class="gcount${full ? ' full' : ''}">${esc(count)}</span>${joined.map(p => chip(p, false)).join('') + waiting.map(p => chip(p, true)).join('')}</div>
+            <div class="gline"><span class="gcount${full ? ' full' : ''}" data-act="likers">${esc(count)}</span></div>
           </div>
           <div class="gheart"><button class="heart${liked ? ' on' : ''}" data-act="like" title="${liked ? '行きたいを取り消す' : '行きたい'}" aria-pressed="${liked}">${ic('heart')}</button><span class="ccnt${g.likes.length ? ' has' : ''}" data-act="likers">${g.likes.length}</span></div>
           <div class="gheart"><button class="heart chatb${g.comments.length ? ' has' : ''}" data-act="cm" title="コメント">${ic('chat')}</button><span class="ccnt${g.comments.length ? ' has' : ''}" data-act="cmsheet">${g.comments.length}</span></div>
