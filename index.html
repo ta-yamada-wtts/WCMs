@@ -340,8 +340,14 @@
         <h2 id="openTitle">今日のロタと部室</h2>
         <p class="muted" id="openMsg">開いています…</p>
         <button id="openBtn" hidden>今日を開く</button>
+        <!-- はじめての端末（合言葉がまだない）：何をすればいいかだけを、短く見せる -->
+        <div id="firstHelp" hidden>
+          <p id="firstMsg">LINEで配られた「WCMs」のリンクを、一度タップしてください。</p>
+          <p class="muted" id="firstSub"></p>
+        </div>
         <!-- 合言葉がない端末（ホーム画面のアプリ・LINEの中など、リンクを開けない場所）のために、配られたリンクを貼れるようにする -->
         <div id="setupHelp" hidden>
+          <p class="muted" style="margin-top:14px">リンクを開けないときは、ここに貼ってください</p>
           <input id="linkPaste" placeholder="配られたリンクを貼る" autocomplete="off">
           <button id="linkPasteBtn" class="sub">設定する</button>
         </div>
@@ -874,7 +880,7 @@
 
     async function openToday() {
       $('homeErr').textContent = '';
-      $('openBtn').hidden = true; $('openMsg').textContent = '開いています…'; $('setupHelp').hidden = true;
+      $('openBtn').hidden = true; $('openMsg').textContent = '開いています…'; $('setupHelp').hidden = true; $('firstHelp').hidden = true;
       const day = boardDay();
       $('openTitle').textContent = day.label + ' のロタと部室';
       try {
@@ -892,8 +898,15 @@
         $('homeErr').textContent = e.message || String(e);
         // 設定がまだ入っていない端末でQRを読んだとき：指示を10分間覚えておく（配られたリンクを開いたら、続きでその状況にする）
         if (hasFirebase && !load('roomSecret', '')) {
-          $('setupHelp').hidden = false;   // リンクを貼って設定できるようにする
           if (pendingDo) save('pendingDo', { a: pendingDo, at: Date.now() });
+          // 「もう一度開く」を押しても変わらない。やることだけを見せる
+          $('openTitle').textContent = 'はじめての方へ';
+          $('openBtn').hidden = true; $('homeErr').textContent = '';
+          $('firstSub').textContent = pendingDo
+            ? 'リンクを開くと、読み取った操作の続きも、そのまま行われます。'
+            : 'リンクを開いたあとは、次から、そのまま入れます。';
+          $('firstHelp').hidden = false;
+          $('setupHelp').hidden = false;   // リンクを開けない端末のために、貼り付け欄を残す
         }
       }
     }
