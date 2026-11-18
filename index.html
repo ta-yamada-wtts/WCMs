@@ -290,7 +290,8 @@
     .gsec { display: flex; justify-content: space-between; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); padding: 4px 2px 0; }
     .gcard { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 7px; display: flex; align-items: center; gap: 8px; }
     .gtime { flex: none; width: 52px; text-align: center; font-size: 1.05rem; font-weight: 700; line-height: 1.1; }
-    .gtime small { display: block; font-size: 0.65rem; font-weight: 400; color: var(--text-muted); margin-top: 1px; }
+    .gtime small { display: block; font-size: 0.6rem; font-weight: 400; color: var(--text-muted); margin-top: 1px; white-space: nowrap; }
+    .gtime.later { color: #93c5fd; font-size: 1.05rem; }   /* 明日以降は、日付のほうを目立たせる（時刻は下に小さく） */
     .gmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .gtop { display: flex; align-items: center; gap: 5px; min-width: 0; }
     .gtag { flex: none; font-size: 0.65rem; font-weight: 700; padding: 0 6px; border-radius: 8px; background: var(--surface-2); color: var(--text-muted); line-height: 1.5; }
@@ -1321,7 +1322,8 @@
     const jstYmd = ms => { const t = new Date(ms + 9 * 3600000); return t.getUTCFullYear() * 10000 + (t.getUTCMonth() + 1) * 100 + t.getUTCDate(); };
     const pad2 = n => String(n).padStart(2, '0');
     const fmtHm = ms => { const t = new Date(ms + 9 * 3600000); return `${pad2(t.getUTCHours())}:${pad2(t.getUTCMinutes())}`; };
-    const fmtMd = ms => { const t = new Date(ms + 9 * 3600000); return `${t.getUTCMonth() + 1}/${t.getUTCDate()}（${'日月火水木金土'[t.getUTCDay()]}）`; };
+    const fmtMdShort = ms => { const t = new Date(ms + 9 * 3600000); return `${t.getUTCMonth() + 1}/${t.getUTCDate()}`; };
+    const fmtWd = ms => '日月火水木金土'[new Date(ms + 9 * 3600000).getUTCDay()];
     function renderGather() {
       const list = gatherEntries();
       $('gNow').textContent = list.length ? `${list.length}件` : '';
@@ -1341,7 +1343,7 @@
         const sameDay = jstYmd(g.at) <= today;
         const liked = g.likes.some(l => l.key === me);
         return `<div class="gcard" data-id="${esc(g.id)}">
-          <div class="gtime">${fmtHm(g.at)}${sameDay ? '' : `<small>${esc(fmtMd(g.at))}</small>`}</div>
+          ${sameDay ? `<div class="gtime">${fmtHm(g.at)}<small>から</small></div>` : `<div class="gtime later">${fmtMdShort(g.at)}<small>${fmtWd(g.at)} ${fmtHm(g.at)}から</small></div>`}
           <div class="gmain">
             <div class="gtop"><span class="gtag ${g.tag}">${esc(GTAGS[g.tag])}</span><span class="gtitle">${esc(g.title)}</span></div>
             <div class="gline"><span class="gcount${full ? ' full' : ''}">${esc(count)}</span>${joined.map(p => chip(p, false)).join('') + waiting.map(p => chip(p, true)).join('')}</div>
