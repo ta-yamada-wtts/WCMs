@@ -303,8 +303,16 @@
     .gcount { font-size: 0.75rem; color: var(--text-muted); margin-right: 2px; }
     .gcount.full { color: #fbbf24; font-weight: 700; }
     .chip.wait { opacity: .65; border-style: dashed; }
-    .gcbtn { min-height: 0; width: auto; padding: 0 4px; background: none; border: none; color: var(--text-muted); font-size: 0.72rem; line-height: 1.5; }
-    .gcbtn.has { color: #93c5fd; }
+    .chatb.has { color: #93c5fd; border-color: rgba(147,197,253,0.5); }
+    .chatb.open { background: var(--blue-soft); }
+    .gheart .heart.chatb .ic { width: 17px; height: 17px; }
+    .sheet-in { flex: none; display: flex; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .sheet-in[hidden] { display: none; }
+    .sheet-in input { flex: 1; min-width: 0; min-height: 0; padding: 8px 10px; font-size: 0.95rem; }
+    .sheet-in button { flex: none; width: auto; min-height: 0; padding: 8px 16px; }
+    .sheet-list .cmrow { align-items: flex-start; }
+    .sheet-list .cmbody { flex: 1; min-width: 0; word-break: break-word; line-height: 1.4; }
+    .sheet-list .cmbody b { color: var(--text-muted); font-weight: 600; margin-right: 2px; }
     .gcm { flex: 0 0 100%; display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--border); padding-top: 4px; }
     .gc { font-size: 0.8rem; line-height: 1.35; word-break: break-word; }
     .gc b { color: var(--text-muted); font-weight: 600; margin-right: 3px; }
@@ -338,6 +346,7 @@
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l5 5 9-10"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 1-4.4 16.9L3 21l1.4-4.3A9 9 0 0 1 12 3z"/><g fill="currentColor" stroke="none"><circle cx="8" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="16" cy="12" r="1.2"/></g></symbol>
     <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.5S3.5 15 3.5 9A4.5 4.5 0 0 1 12 6.8 4.5 4.5 0 0 1 20.5 9c0 6-8.5 11.5-8.5 11.5z"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
     <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></symbol>
@@ -533,6 +542,7 @@
       <div class="sheet-sub" id="sheetSub"></div>
     </div>
     <div class="sheet-list" id="sheetList"></div>
+    <div class="sheet-in" id="sheetIn" hidden><input id="sheetInput" maxlength="100" placeholder="コメントを書く" autocomplete="off"><button id="sheetSend">送る</button></div>
   </div>
   <div id="toast" class="toast"></div>
 
@@ -1270,23 +1280,45 @@
     }
 
     // ---------- 行きたい人の一覧（下から上がってくるシート）----------
-    let skipClickUntil = 0, sheetKey = null, sheetOpenedAt = 0;
-    function openSheet(id) {
-      sheetKey = id; sheetOpenedAt = Date.now();
+    let skipClickUntil = 0, sheetKey = null, sheetOpenedAt = 0, sheetMode = 'likes';   // sheetMode: 'likes'（行きたい人）／'cm'（コメント）
+    function openSheet(id, mode) {
+      sheetKey = id; sheetMode = mode || 'likes'; sheetOpenedAt = Date.now();
       renderSheet();
       $('sheetBg').classList.add('show'); $('sheet').classList.add('show');
     }
     function closeSheet() {
-      sheetKey = null;
+      sheetKey = null; $('sheetIn').hidden = true;
       $('sheetBg').classList.remove('show'); $('sheet').classList.remove('show');
     }
     function renderSheet() {
       if (!sheetKey) return;
       const g = gatherEntries().find(x => x.id === sheetKey);
       if (!g) { closeSheet(); return; }   // 集まりが消された
-      $('sheetSub').textContent = `${g.title}・${g.likes.length}人`;
       const box = $('sheetList');
+      const cm = sheetMode === 'cm';
+      $('sheetTitle').textContent = cm ? 'コメント' : '行きたい人';
+      $('sheetIn').hidden = !cm;
       box.innerHTML = '';
+      if (cm) {
+        $('sheetSub').textContent = `${g.title}・${g.comments.length}件`;
+        g.comments.forEach(c => {
+          const row = document.createElement('div'); row.className = 'who cmrow' + (c.by === myKey() ? ' me' : '');
+          const av = document.createElement('span'); av.className = 'av'; av.innerHTML = ic('user');
+          const body = document.createElement('span'); body.className = 'cmbody';
+          const nm = document.createElement('b'); nm.textContent = c.name;
+          body.append(nm, document.createTextNode(' ' + c.text));
+          row.append(av, body);
+          if (c.by === myKey()) {
+            const x = document.createElement('button'); x.className = 'gcx'; x.textContent = '×'; x.title = '消す';
+            x.onclick = () => backend.setComment(gatherId, g.id, c.cid, null).catch(e => toast('消せませんでした：' + (e.message || e), true));
+            row.appendChild(x);
+          }
+          box.appendChild(row);
+        });
+        if (!g.comments.length) box.innerHTML = '<div class="none-txt">まだコメントがありません</div>';
+        return;
+      }
+      $('sheetSub').textContent = `${g.title}・${g.likes.length}人`;
       g.likes.slice().sort((a, b) => ja(a.name, b.name)).forEach(({ key, name }) => {
         const row = document.createElement('div'); row.className = 'who' + (key === myKey() ? ' me' : '');
         const av = document.createElement('span'); av.className = 'av'; av.innerHTML = ic('user');
@@ -1367,9 +1399,10 @@
           ${sameDay ? `<div class="gtime">${fmtHm(g.at)}<small>から</small></div>` : `<div class="gtime later">${fmtMdShort(g.at)}<small>${fmtWd(g.at)} ${fmtHm(g.at)}から</small></div>`}
           <div class="gmain">
             <div class="gtop"><span class="gtag ${g.tag}">${esc(GTAGS[g.tag])}</span><span class="gtitle">${esc(g.title)}</span></div>
-            <div class="gline"><span class="gcount${full ? ' full' : ''}">${esc(count)}</span>${joined.map(p => chip(p, false)).join('') + waiting.map(p => chip(p, true)).join('')}<button class="gcbtn${g.comments.length ? ' has' : ''}" data-act="cm">コメント${g.comments.length ? g.comments.length : ''}${cmOpen.has(g.id) ? '▲' : ''}</button></div>
+            <div class="gline"><span class="gcount${full ? ' full' : ''}">${esc(count)}</span>${joined.map(p => chip(p, false)).join('') + waiting.map(p => chip(p, true)).join('')}</div>
           </div>
           <div class="gheart"><button class="heart${liked ? ' on' : ''}" data-act="like" title="${liked ? '行きたいを取り消す' : '行きたい'}" aria-pressed="${liked}">${ic('heart')}</button><span class="ccnt${g.likes.length ? ' has' : ''}" data-act="likers">${g.likes.length}</span></div>
+          <div class="gheart"><button class="heart chatb${g.comments.length ? ' has' : ''}${cmOpen.has(g.id) ? ' open' : ''}" data-act="cm" title="コメント">${ic('chat')}</button><span class="ccnt${g.comments.length ? ' has' : ''}" data-act="cmsheet">${g.comments.length}</span></div>
           <div class="gbtns"><button class="gjoin${myIdx >= 0 ? ' sub' : ''}" data-act="join">${esc(label)}</button>${g.by === me ? '<button class="sub gdel" data-act="del">消す</button>' : ''}</div>
           ${cmOpen.has(g.id) ? `<div class="gcm">${g.comments.map(c => `<div class="gc"><b>${esc(c.name)}</b> ${esc(c.text)}${c.by === me ? `<button class="gcx" data-act="cmdel" data-cid="${esc(c.cid)}" title="消す">×</button>` : ''}</div>`).join('')}<div class="gcin"><input class="gcinput" maxlength="100" placeholder="コメントを書く" autocomplete="off"><button class="gcsend" data-act="cmsend">送る</button></div></div>` : ''}
         </div>`;
@@ -1384,11 +1417,15 @@
     function sendComment(id) {
       const card = document.querySelector(`#gList .gcard[data-id="${CSS.escape(id)}"]`); if (!card || !gatherId) return;
       const inp = card.querySelector('.gcinput');
-      const text = inp.value.replace(/\s+/g, ' ').trim().slice(0, 100);
-      if (!text) return;
+      if (postComment(id, inp.value)) { inp.value = ''; delete cmDraft[id]; }
+    }
+    function postComment(id, raw) {
+      if (!gatherId) return false;
+      const text = String(raw).replace(/\s+/g, ' ').trim().slice(0, 100);
+      if (!text) return false;
       const cid = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-      inp.value = ''; delete cmDraft[id];
       backend.setComment(gatherId, id, cid, { by: myKey(), name: myName, text, t: Date.now() }).catch(e => toast('送れませんでした：' + (e.message || e), true));
+      return true;
     }
     function toggleLike(id) {
       const g = gatherEntries().find(x => x.id === id);
@@ -1962,6 +1999,9 @@
     setupSuggest('shopSearch', 'shopSug', info => addShop(info), () => shopEntries().map(s => s.name), () => shopMemo, REGULAR_SHOPS);
     $('withSearch').oninput = renderWith;
     $('gNewBtn').onclick = () => openGatherForm(true);
+    const sheetPost = () => { if (sheetKey && postComment(sheetKey, $('sheetInput').value)) $('sheetInput').value = ''; };
+    $('sheetSend').onclick = sheetPost;
+    $('sheetInput').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sheetPost(); } };
     $('gCancel').onclick = () => openGatherForm(false);
     $('gCreate').onclick = createGather;
     $('gTags').onclick = e => { const b = e.target.closest('.gtagbtn'); if (!b) return; gTag = b.dataset.tag; document.querySelectorAll('#gTags .gtagbtn').forEach(x => x.classList.toggle('on', x === b)); };
@@ -1972,16 +2012,18 @@
       const stop = () => clearTimeout(timer);
       list.addEventListener('pointerdown', e => {
         const h = e.target.closest('.heart'); if (!h) return;
-        const id = h.closest('.gcard').dataset.id;
-        stop(); timer = setTimeout(() => { skipClickUntil = Date.now() + 800; openSheet(id); }, 500);
+        const id = h.closest('.gcard').dataset.id, mode = h.classList.contains('chatb') ? 'cm' : 'likes';
+        stop(); timer = setTimeout(() => { skipClickUntil = Date.now() + 800; openSheet(id, mode); }, 500);
       });
       ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => list.addEventListener(ev, stop));
       list.addEventListener('contextmenu', e => { if (e.target.closest('.heart')) e.preventDefault(); });
       list.onclick = e => {
         const b = e.target.closest('[data-act]'); if (!b) return;
         const id = b.closest('.gcard').dataset.id;
+        if (b.dataset.act === 'cm' && Date.now() < skipClickUntil) { skipClickUntil = 0; return; }   // 長押しの直後の「押した」は無視する
         if (b.dataset.act === 'like') { if (Date.now() < skipClickUntil) { skipClickUntil = 0; return; } toggleLike(id); }   // 長押しの直後の「押した」は無視する
         else if (b.dataset.act === 'likers') openSheet(id);
+        else if (b.dataset.act === 'cmsheet') openSheet(id, 'cm');
         else if (b.dataset.act === 'join') toggleJoin(id);
         else if (b.dataset.act === 'cm') { if (cmOpen.has(id)) cmOpen.delete(id); else cmOpen.add(id); renderGather(); }
         else if (b.dataset.act === 'cmsend') sendComment(id);
