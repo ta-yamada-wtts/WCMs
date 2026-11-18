@@ -278,8 +278,8 @@
     .ccnt.has { color: #fb7185; font-weight: 700; }
     /* イベント */
     .glist { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
-    #gForm { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
-    #gForm[hidden] { display: none; }
+    #gForm { gap: 6px; overflow: auto; }
+    #gForm .sheet-head { padding-bottom: 6px; }
     #gForm input, #gForm button { min-height: 0; padding: 6px 10px; font-size: 0.9rem; }
     #gNewBtn { min-height: 0; padding: 6px 10px; font-size: 0.9rem; }
     .gtags { display: flex; gap: 5px; }
@@ -468,17 +468,6 @@
       <div class="card">
         <p class="card-title"><span class="t"><svg class="ic"><use href="#i-users"/></svg>イベント</span><span class="card-title-count" id="gNow"></span></p>
         <button id="gNewBtn" class="sub dash"><svg class="ic"><use href="#i-plus"/></svg>イベントをつくる</button>
-        <div id="gForm" hidden>
-          <div class="gtags" id="gTags">
-            <button type="button" class="gtagbtn on" data-tag="nomi">飲み会</button>
-            <button type="button" class="gtagbtn" data-tag="takkyu">卓球</button>
-            <button type="button" class="gtagbtn" data-tag="other">その他</button>
-          </div>
-          <input id="gTitle" maxlength="30" placeholder="名前（例：新歓の飲み会）" autocomplete="off">
-          <div class="grow"><input id="gDate" type="date"><input id="gTime" type="time" value="19:00"></div>
-          <input id="gCap" type="number" min="1" max="200" inputmode="numeric" placeholder="先着の人数（空欄なら、制限なし）">
-          <div class="grow"><button id="gCreate">つくる</button><button id="gCancel" class="sub">やめる</button></div>
-        </div>
         <div class="glist" id="gList"></div>
       </div>
       </div>
@@ -539,6 +528,18 @@
     </div>
     <div class="sheet-list" id="sheetList"></div>
     <div class="sheet-in" id="sheetIn" hidden><input id="sheetInput" maxlength="100" placeholder="コメントを書く" autocomplete="off"><button id="sheetSend" aria-label="送る" title="送る"><svg class="ic"><use href="#i-send"/></svg></button></div>
+  </div>
+  <div class="sheet" id="gForm" role="dialog" aria-modal="true" aria-labelledby="gFormTitle">
+    <div class="sheet-head"><div class="sheet-grip"></div><div class="sheet-title" id="gFormTitle">イベントをつくる</div></div>
+          <div class="gtags" id="gTags">
+            <button type="button" class="gtagbtn on" data-tag="nomi">飲み会</button>
+            <button type="button" class="gtagbtn" data-tag="takkyu">卓球</button>
+            <button type="button" class="gtagbtn" data-tag="other">その他</button>
+          </div>
+          <input id="gTitle" maxlength="30" placeholder="名前（例：新歓の飲み会）" autocomplete="off">
+          <div class="grow"><input id="gDate" type="date"><input id="gTime" type="time" value="19:00"></div>
+          <input id="gCap" type="number" min="1" max="200" inputmode="numeric" placeholder="先着の人数（空欄なら、制限なし）">
+          <div class="grow"><button id="gCreate">つくる</button><button id="gCancel" class="sub">やめる</button></div>
   </div>
   <div id="toast" class="toast"></div>
 
@@ -1283,7 +1284,7 @@
       $('sheetBg').classList.add('show'); $('sheet').classList.add('show');
     }
     function closeSheet() {
-      sheetKey = null; $('sheetIn').hidden = true;
+      sheetKey = null; $('sheetIn').hidden = true; $('gForm').classList.remove('show');
       $('sheetBg').classList.remove('show'); $('sheet').classList.remove('show');
     }
     function renderSheet() {
@@ -1439,12 +1440,18 @@
       backend.removeGathering(gatherId, id).then(() => toast('消しました')).catch(e => toast('消せませんでした：' + (e.message || e), true));
     }
     function openGatherForm(on) {
-      $('gForm').hidden = !on; $('gNewBtn').hidden = on;
+      $('gForm').classList.toggle('show', on); $('sheetBg').classList.toggle('show', on);   // 下から上がる枠。外をタップ・やめる・つくるで閉じる
       if (on) {
-        $('gTitle').value = ''; $('gCap').value = ''; $('gTime').value = '19:00';
-        $('gDate').value = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);   // 日本の今日
+        sheetOpenedAt = Date.now();
+        $('gTitle').value = ''; $('gCap').value = '';
+        // 初期値：夜7時。もう過ぎていれば次の区切りの時刻、深夜なら明日の夜7時
+        const jst = new Date(Date.now() + 9 * 3600000), hh = jst.getUTCHours();
+        let dayOff = 0, hour = 19;
+        if (hh >= 19) { hour = hh + 1; if (hour >= 24) { hour = 19; dayOff = 1; } }
+        $('gTime').value = pad2(hour) + ':00';
+        $('gDate').value = new Date(Date.now() + 9 * 3600000 + dayOff * 86400000).toISOString().slice(0, 10);   // 日本時間の日付
         gTag = 'nomi'; document.querySelectorAll('#gTags .gtagbtn').forEach(b => b.classList.toggle('on', b.dataset.tag === gTag));
-        $('gTitle').focus();
+        setTimeout(() => $('gTitle').focus(), 280);
       }
     }
     async function createGather() {
