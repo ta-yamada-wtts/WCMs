@@ -304,18 +304,15 @@
     .gcount.full { color: #fbbf24; font-weight: 700; }
     .chip.wait { opacity: .65; border-style: dashed; }
     .chatb.has { color: #93c5fd; border-color: rgba(147,197,253,0.5); }
-    .chatb.open { background: var(--blue-soft); }
+    .sheet-in { flex: none; display: flex; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .sheet-in[hidden] { display: none; }
+    .sheet-in input { flex: 1; min-width: 0; min-height: 0; padding: 8px 10px; font-size: 0.95rem; }
+    .sheet-in button { flex: none; width: auto; min-height: 0; padding: 8px 16px; }
     .gheart .heart.chatb .ic { width: 17px; height: 17px; }
     .sheet-list .cmrow { align-items: flex-start; }
     .sheet-list .cmbody { flex: 1; min-width: 0; word-break: break-word; line-height: 1.4; }
     .sheet-list .cmbody b { color: var(--text-muted); font-weight: 600; margin-right: 2px; }
-    .gcm { flex: 0 0 100%; display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--border); padding-top: 4px; }
-    .gc { font-size: 0.8rem; line-height: 1.35; word-break: break-word; }
-    .gc b { color: var(--text-muted); font-weight: 600; margin-right: 3px; }
     .gcx { display: inline-block; min-height: 0; width: auto; vertical-align: baseline; padding: 0 6px; background: none; border: none; color: var(--text-muted); font-size: 0.8rem; }
-    .gcin { display: flex; gap: 5px; }
-    .gcin input { flex: 1; min-width: 0; min-height: 0; padding: 4px 8px; font-size: 0.85rem; }
-    .gcin button { flex: none; width: auto; min-height: 0; padding: 4px 12px; font-size: 0.8rem; }
     .gheart { flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px; width: 30px; }
     .gheart .heart { width: 28px; height: 28px; }
     .gheart .heart .ic { width: 16px; height: 16px; }
@@ -538,6 +535,7 @@
       <div class="sheet-sub" id="sheetSub"></div>
     </div>
     <div class="sheet-list" id="sheetList"></div>
+    <div class="sheet-in" id="sheetIn" hidden><input id="sheetInput" maxlength="100" placeholder="コメントを書く" autocomplete="off"><button id="sheetSend">送る</button></div>
   </div>
   <div id="toast" class="toast"></div>
 
@@ -1282,7 +1280,7 @@
       $('sheetBg').classList.add('show'); $('sheet').classList.add('show');
     }
     function closeSheet() {
-      sheetKey = null;
+      sheetKey = null; $('sheetIn').hidden = true;
       $('sheetBg').classList.remove('show'); $('sheet').classList.remove('show');
     }
     function renderSheet() {
@@ -1292,6 +1290,7 @@
       const box = $('sheetList');
       const cm = sheetMode === 'cm';
       $('sheetTitle').textContent = cm ? 'コメント' : '行きたい人';
+      $('sheetIn').hidden = !cm;
       box.innerHTML = '';
       if (cm) {
         $('sheetSub').textContent = `${g.title}・${g.comments.length}件`;
@@ -1302,6 +1301,11 @@
           const nm = document.createElement('b'); nm.textContent = c.name;
           body.append(nm, document.createTextNode(' ' + c.text));
           row.append(av, body);
+          if (c.by === myKey()) {
+            const x = document.createElement('button'); x.className = 'gcx'; x.textContent = '×'; x.title = '消す';
+            x.onclick = () => backend.setComment(gatherId, g.id, c.cid, null).catch(e => toast('消せませんでした：' + (e.message || e), true));
+            row.appendChild(x);
+          }
           box.appendChild(row);
         });
         if (!g.comments.length) box.innerHTML = '<div class="none-txt">まだコメントがありません</div>';
@@ -1362,16 +1366,12 @@
     const fmtHm = ms => { const t = new Date(ms + 9 * 3600000); return `${pad2(t.getUTCHours())}:${pad2(t.getUTCMinutes())}`; };
     const fmtMdShort = ms => { const t = new Date(ms + 9 * 3600000); return `${t.getUTCMonth() + 1}/${t.getUTCDate()}`; };
     const fmtWd = ms => '日月火水木金土'[new Date(ms + 9 * 3600000).getUTCDay()];
-    const cmOpen = new Set(), cmDraft = {};   // コメント欄を開いている集まり／書きかけの文
     function renderGather() {
       const list = gatherEntries();
       $('gNow').textContent = list.length ? `${list.length}件` : '';
       $('badge2').hidden = !list.length; $('badge2').textContent = list.length;
       const box = $('gList');
       if (!list.length) { box.innerHTML = '<div class="none-txt">まだ集まりがありません</div>'; return; }
-      // 入力中に誰かが書き込んでも、書きかけの文と入力欄の位置を失わないようにする
-      const act = document.activeElement, typing = act && act.classList && act.classList.contains('gcinput') ? { id: act.closest('.gcard').dataset.id, pos: act.selectionStart } : null;
-      if (typing) cmDraft[typing.id] = act.value;
       const me = myKey(), today = jstYmd(Date.now());
       const card = g => {
         const joined = g.people.filter((p, i) => !g.cap || i < g.cap);
@@ -1391,22 +1391,14 @@
             <div class="gline"><span class="gcount${full ? ' full' : ''}">${esc(count)}</span>${joined.map(p => chip(p, false)).join('') + waiting.map(p => chip(p, true)).join('')}</div>
           </div>
           <div class="gheart"><button class="heart${liked ? ' on' : ''}" data-act="like" title="${liked ? '行きたいを取り消す' : '行きたい'}" aria-pressed="${liked}">${ic('heart')}</button><span class="ccnt${g.likes.length ? ' has' : ''}" data-act="likers">${g.likes.length}</span></div>
-          <div class="gheart"><button class="heart chatb${g.comments.length ? ' has' : ''}${cmOpen.has(g.id) ? ' open' : ''}" data-act="cm" title="コメント">${ic('chat')}</button><span class="ccnt${g.comments.length ? ' has' : ''}" data-act="cmsheet">${g.comments.length}</span></div>
+          <div class="gheart"><button class="heart chatb${g.comments.length ? ' has' : ''}" data-act="cm" title="コメント">${ic('chat')}</button><span class="ccnt${g.comments.length ? ' has' : ''}" data-act="cmsheet">${g.comments.length}</span></div>
           <div class="gbtns"><button class="gjoin${myIdx >= 0 ? ' sub' : ''}" data-act="join">${esc(label)}</button>${g.by === me ? '<button class="sub gdel" data-act="del">消す</button>' : ''}</div>
-          ${cmOpen.has(g.id) ? `<div class="gcm">${g.comments.map(c => `<div class="gc"><b>${esc(c.name)}</b> ${esc(c.text)}${c.by === me ? `<button class="gcx" data-act="cmdel" data-cid="${esc(c.cid)}" title="消す">×</button>` : ''}</div>`).join('')}<div class="gcin"><input class="gcinput" maxlength="100" placeholder="コメントを書く" autocomplete="off"><button class="gcsend" data-act="cmsend">送る</button></div></div>` : ''}
         </div>`;
       };
       const todayList = list.filter(g => jstYmd(g.at) <= today), laterList = list.filter(g => jstYmd(g.at) > today);
       const sec = (title, arr) => arr.length ? `<div class="gsec">${title}<span>${arr.length}件</span></div>` + arr.map(card).join('') : '';
       box.innerHTML = sec('今日', todayList) + sec('明日以降', laterList);
-      box.querySelectorAll('.gcinput').forEach(inp => { const id = inp.closest('.gcard').dataset.id; inp.value = cmDraft[id] || ''; });
-      if (typing) { const inp = box.querySelector(`.gcard[data-id="${CSS.escape(typing.id)}"] .gcinput`); if (inp) { inp.focus(); try { inp.setSelectionRange(typing.pos, typing.pos); } catch (e) {} } }
       renderSheet();   // 開いている一覧も、いまの内容に合わせる
-    }
-    function sendComment(id) {
-      const card = document.querySelector(`#gList .gcard[data-id="${CSS.escape(id)}"]`); if (!card || !gatherId) return;
-      const inp = card.querySelector('.gcinput');
-      if (postComment(id, inp.value)) { inp.value = ''; delete cmDraft[id]; }
     }
     function postComment(id, raw) {
       if (!gatherId) return false;
@@ -1988,6 +1980,9 @@
     setupSuggest('shopSearch', 'shopSug', info => addShop(info), () => shopEntries().map(s => s.name), () => shopMemo, REGULAR_SHOPS);
     $('withSearch').oninput = renderWith;
     $('gNewBtn').onclick = () => openGatherForm(true);
+    const sheetPost = () => { if (sheetKey && postComment(sheetKey, $('sheetInput').value)) $('sheetInput').value = ''; };
+    $('sheetSend').onclick = sheetPost;
+    $('sheetInput').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sheetPost(); } };
     $('gCancel').onclick = () => openGatherForm(false);
     $('gCreate').onclick = createGather;
     $('gTags').onclick = e => { const b = e.target.closest('.gtagbtn'); if (!b) return; gTag = b.dataset.tag; document.querySelectorAll('#gTags .gtagbtn').forEach(x => x.classList.toggle('on', x === b)); };
@@ -2009,15 +2004,10 @@
         if (b.dataset.act === 'cm' && Date.now() < skipClickUntil) { skipClickUntil = 0; return; }   // 長押しの直後の「押した」は無視する
         if (b.dataset.act === 'like') { if (Date.now() < skipClickUntil) { skipClickUntil = 0; return; } toggleLike(id); }   // 長押しの直後の「押した」は無視する
         else if (b.dataset.act === 'likers') openSheet(id);
-        else if (b.dataset.act === 'cmsheet') openSheet(id, 'cm');
+        else if (b.dataset.act === 'cmsheet' || b.dataset.act === 'cm') openSheet(id, 'cm');   // 単押しも長押しも、同じ枠
         else if (b.dataset.act === 'join') toggleJoin(id);
-        else if (b.dataset.act === 'cm') { if (cmOpen.has(id)) cmOpen.delete(id); else cmOpen.add(id); renderGather(); }
-        else if (b.dataset.act === 'cmsend') sendComment(id);
-        else if (b.dataset.act === 'cmdel') backend.setComment(gatherId, id, b.dataset.cid, null).catch(e => toast('消せませんでした：' + (e.message || e), true));
         else deleteGather(id);
       };
-      list.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.classList.contains('gcinput') && !e.isComposing) { e.preventDefault(); sendComment(e.target.closest('.gcard').dataset.id); } });
-      list.addEventListener('input', e => { if (e.target.classList.contains('gcinput')) cmDraft[e.target.closest('.gcard').dataset.id] = e.target.value; });
     })();
     $('apiLinkBtn').onclick = copyApiLink;
     $('secretNewBtn').onclick = renewSecret;
