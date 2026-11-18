@@ -306,10 +306,6 @@
     .chatb.has { color: #93c5fd; border-color: rgba(147,197,253,0.5); }
     .chatb.open { background: var(--blue-soft); }
     .gheart .heart.chatb .ic { width: 17px; height: 17px; }
-    .sheet-in { flex: none; display: flex; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
-    .sheet-in[hidden] { display: none; }
-    .sheet-in input { flex: 1; min-width: 0; min-height: 0; padding: 8px 10px; font-size: 0.95rem; }
-    .sheet-in button { flex: none; width: auto; min-height: 0; padding: 8px 16px; }
     .sheet-list .cmrow { align-items: flex-start; }
     .sheet-list .cmbody { flex: 1; min-width: 0; word-break: break-word; line-height: 1.4; }
     .sheet-list .cmbody b { color: var(--text-muted); font-weight: 600; margin-right: 2px; }
@@ -542,7 +538,6 @@
       <div class="sheet-sub" id="sheetSub"></div>
     </div>
     <div class="sheet-list" id="sheetList"></div>
-    <div class="sheet-in" id="sheetIn" hidden><input id="sheetInput" maxlength="100" placeholder="コメントを書く" autocomplete="off"><button id="sheetSend">送る</button></div>
   </div>
   <div id="toast" class="toast"></div>
 
@@ -1287,7 +1282,7 @@
       $('sheetBg').classList.add('show'); $('sheet').classList.add('show');
     }
     function closeSheet() {
-      sheetKey = null; $('sheetIn').hidden = true;
+      sheetKey = null;
       $('sheetBg').classList.remove('show'); $('sheet').classList.remove('show');
     }
     function renderSheet() {
@@ -1297,7 +1292,6 @@
       const box = $('sheetList');
       const cm = sheetMode === 'cm';
       $('sheetTitle').textContent = cm ? 'コメント' : '行きたい人';
-      $('sheetIn').hidden = !cm;
       box.innerHTML = '';
       if (cm) {
         $('sheetSub').textContent = `${g.title}・${g.comments.length}件`;
@@ -1308,11 +1302,6 @@
           const nm = document.createElement('b'); nm.textContent = c.name;
           body.append(nm, document.createTextNode(' ' + c.text));
           row.append(av, body);
-          if (c.by === myKey()) {
-            const x = document.createElement('button'); x.className = 'gcx'; x.textContent = '×'; x.title = '消す';
-            x.onclick = () => backend.setComment(gatherId, g.id, c.cid, null).catch(e => toast('消せませんでした：' + (e.message || e), true));
-            row.appendChild(x);
-          }
           box.appendChild(row);
         });
         if (!g.comments.length) box.innerHTML = '<div class="none-txt">まだコメントがありません</div>';
@@ -1999,9 +1988,6 @@
     setupSuggest('shopSearch', 'shopSug', info => addShop(info), () => shopEntries().map(s => s.name), () => shopMemo, REGULAR_SHOPS);
     $('withSearch').oninput = renderWith;
     $('gNewBtn').onclick = () => openGatherForm(true);
-    const sheetPost = () => { if (sheetKey && postComment(sheetKey, $('sheetInput').value)) $('sheetInput').value = ''; };
-    $('sheetSend').onclick = sheetPost;
-    $('sheetInput').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sheetPost(); } };
     $('gCancel').onclick = () => openGatherForm(false);
     $('gCreate').onclick = createGather;
     $('gTags').onclick = e => { const b = e.target.closest('.gtagbtn'); if (!b) return; gTag = b.dataset.tag; document.querySelectorAll('#gTags .gtagbtn').forEach(x => x.classList.toggle('on', x === b)); };
