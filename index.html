@@ -332,6 +332,177 @@
     .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(90px); max-width: calc(100vw - 32px); background: var(--surface); border: 1px solid rgba(34,197,94,0.4); color: var(--green); padding: 12px 22px; border-radius: 22px; width: max-content; font-size: 0.88rem; font-weight: 500; box-shadow: 0 4px 16px rgba(0,0,0,.4); transition: transform .3s ease; z-index: 10000; text-align: center; pointer-events: none; }
     .toast.err { border-color: rgba(239,68,68,0.4); color: #fca5a5; }
     .toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ============================================================
+       見た目と動き：Apple の設計の考え方（反応の速さ・つかんで動かせる・ばねの動き・素材の重なり・文字の詰め方）で、見た目と動きを組み直した版
+       ============================================================ */
+    :root {
+      --bg: #000; --surface: #1c1c1e; --surface-2: #2c2c2e; --surface-3: #3a3a3c;
+      --border: rgba(255,255,255,.08); --border-mid: rgba(255,255,255,.16);
+      --text: #f5f5f7; --text-sub: #aeaeb2; --text-muted: #8e8e93;
+      --blue: #0a84ff; --blue-soft: rgba(10,132,255,.16);
+      --green: #30d158; --green-soft: rgba(48,209,88,.16);
+      --amber: #ff9f0a; --amber-soft: rgba(255,159,10,.16);
+      --red: #ff453a; --pink: #ff375f;
+      --radius-sm: 10px; --radius: 14px; --radius-lg: 22px;
+      --spring: linear(0, 0.0095 1%, 0.0364 2.1%, 0.1531 5%, 0.3056 8.1%, 0.5 11.9%, 0.7 15.9%, 0.8672 20.4%, 0.9615 25%, 1.0023 29.8%, 1.0125 35%, 1.0066 42%, 1.0013 52%, 1);
+      --glass: rgba(28,28,30,.62);
+      --glass-line: rgba(255,255,255,.14);
+      font-synthesis: none;
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", system-ui, sans-serif; letter-spacing: .005em; }
+    button, .heart, .qbtn { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+
+    /* 反応：押した瞬間に、手応えを返す（離すのを待たない） */
+    button { transition: transform .45s var(--spring), background-color .2s, color .2s, opacity .2s; }
+    button:active { transform: scale(.965); transition-duration: .08s; background: var(--blue); filter: brightness(.9); }
+    button.sub:active, .qbtn:active, .gtagbtn:active { background: var(--surface-3); filter: none; }
+    button.link:active, button.icon:active, .sheet-in button:active { background: none; filter: none; transform: scale(.9); }
+    button.icon:active { background: var(--surface-2); }
+    .qbtn:active { transform: scale(.94); }
+
+    /* 見出し：大きい文字はつめ、小さい文字は少し広げる */
+    .date { font-size: 1.9rem; font-weight: 800; letter-spacing: -.035em; line-height: 1.1; }
+    .date { white-space: nowrap; flex: none; }
+    #remain { font-size: .75rem; color: var(--text-muted); letter-spacing: .02em; text-align: right; line-height: 1.3; }
+    #remain .ic { display: none; }
+    .top { gap: 12px; }
+    .sheet:not(.show):not([style*="--sy"]) { visibility: hidden; }
+    .top { padding: 4px 4px 0; align-items: flex-end; }
+    .card-title { letter-spacing: .04em; font-size: .78rem; font-weight: 600; text-transform: none; }
+
+    /* 画面：余白は、まとまりごとに決める */
+    .screen { padding: 8px var(--gap) calc(96px + env(safe-area-inset-bottom)); gap: 14px; }
+    body.in-room #room, body.in-room #bushitsu { padding: 8px var(--gap) calc(96px + env(safe-area-inset-bottom)); gap: 14px; }
+    body.in-room header { border-bottom: 0; }
+
+    /* 絞り込み・並べ替えは、軽い丸ボタンにする */
+    .nowbar { gap: 8px; }
+    .nowbar select { background: var(--surface); border: 0; color: var(--text-sub); border-radius: 999px; padding: 7px 14px; font-size: .8rem; font-weight: 600; -webkit-appearance: none; appearance: none; }
+
+    /* ロタ・部室：この画面の主役。数字を大きく、色は薄い面で伝える */
+    .places { gap: 14px; }
+    .place { border: 0; border-radius: var(--radius-lg); padding: 16px 16px 14px; box-shadow: inset 0 0 0 1px var(--border);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--accent, #888) 14%, var(--surface)) 0%, var(--surface) 70%); }
+    .place.rota { --accent: var(--green); }
+    .place.bu { --accent: var(--blue); }
+    .place .pt { font-size: 1.05rem; font-weight: 700; letter-spacing: -.01em; color: var(--accent); }
+    .place .pn { font-size: 3.6rem; font-weight: 800; letter-spacing: -.05em; line-height: .95; font-variant-numeric: tabular-nums; }
+    .place .pu { font-size: .85rem; color: var(--text-sub); font-weight: 600; }
+    .place .chips { margin-top: 12px; gap: 6px; }
+    .place .chip { font-size: .8rem; padding: 5px 11px; border-radius: 999px; border: 0; background: rgba(255,255,255,.09); letter-spacing: .01em; }
+    .place .chip.me { background: color-mix(in srgb, var(--accent) 28%, transparent); color: #fff; }
+    .place .chip.go { background: transparent; box-shadow: inset 0 0 0 1px var(--border-mid); border: 0; }
+    .place .psub { margin-top: 14px; font-size: .75rem; letter-spacing: .04em; }
+    .place .chip small { font-size: .62rem; }
+    .none-txt { color: var(--text-muted); }
+
+    /* 自分のカード：下に浮かぶ、すりガラスの帯。後ろの内容が透けて見える */
+    #bushitsu .hero, #pane1 .hero, .hero, #buHero { border: 0; border-radius: 26px; padding: 10px; background: var(--glass); -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+      box-shadow: 0 10px 34px rgba(0,0,0,.5), inset 0 0 0 1px var(--glass-line), inset 0 1px 0 rgba(255,255,255,.12); }
+    #bushitsu .hero { bottom: calc(76px + env(safe-area-inset-bottom)); }
+    #pane1 .hero { bottom: calc(76px + env(safe-area-inset-bottom)); }
+    .hero.shop, .hero.moving, .hero.arrived { border-top-color: transparent; }
+    .hero-user { font-size: .95rem; font-weight: 700; letter-spacing: -.005em; }
+    #buHero .hero-head { padding: 2px 6px 0; }
+    #buHero .quick { gap: 6px; }
+    #buHero .qbtn, .qbtn { border: 0; border-radius: 18px; background: rgba(255,255,255,.09); color: var(--text); min-height: 54px; font-size: .68rem; font-weight: 700; letter-spacing: .02em; gap: 3px; }
+    #buHero .qbtn .ic { width: 22px; height: 22px; }
+    .qbtn.off { opacity: .55; }
+    #buHero .qbtn.shop.on, #hero .qbtn.shop.on, .qbtn.shop.on { background: var(--blue); color: #fff; box-shadow: 0 4px 16px rgba(10,132,255,.45); }
+    #buHero .qbtn.moving.on, #hero .qbtn.moving.on, .qbtn.moving.on { background: var(--amber); color: #1a1100; box-shadow: 0 4px 16px rgba(255,159,10,.4); }
+    #buHero .qbtn.arrived.on, #hero .qbtn.arrived.on, .qbtn.arrived.on { background: var(--green); color: #03210c; box-shadow: 0 4px 16px rgba(48,209,88,.4); }
+    #buHero .qbtn.pop, .qbtn.pop { animation: none; }
+    #buHero .qbtn.on { transition: transform .5s var(--spring), background-color .2s, box-shadow .3s; }
+
+    /* 下のタブ：浮かぶ、すりガラスのカプセル */
+    .bnav { position: fixed; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(calc(100% - 32px), 360px); z-index: 50;
+      border: 0; border-radius: 30px; padding: 5px; gap: 2px; background: var(--glass); -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+      box-shadow: 0 10px 34px rgba(0,0,0,.5), inset 0 0 0 1px var(--glass-line), inset 0 1px 0 rgba(255,255,255,.12); }
+    .bnav button { min-height: 52px; padding: 6px 4px; border-radius: 25px; font-size: .68rem; font-weight: 600; letter-spacing: .02em; gap: 2px; color: var(--text-sub); }
+    .bnav button.on { color: var(--blue); background: rgba(255,255,255,.1); }
+    .bnav button.on::before { display: none; }
+    .bnav button:active { background: rgba(255,255,255,.14); }
+    .bnav .ic { width: 22px; height: 22px; }
+    .bnav .badge { background: var(--blue); color: #fff; font-size: .62rem; padding: 0 6px; }
+
+    /* カード・入力 */
+    .card { border: 0; border-radius: var(--radius-lg); background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); }
+    input, select { background: var(--surface-2); border: 0; border-radius: var(--radius); box-shadow: none; }
+    input:focus { box-shadow: 0 0 0 2px var(--blue); }
+    button.sub { background: var(--surface-2); border: 0; color: var(--text); }
+    button.dash { background: transparent; box-shadow: inset 0 0 0 1px var(--border-mid); border: 0; color: var(--text-sub); }
+    .chip, .pchip { border: 0; background: var(--surface-2); }
+
+    /* イベント：1つの面に、区切り線で並べる（枠を重ねない） */
+    .glist { gap: 0; margin-top: 4px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: inset 0 0 0 1px var(--border); overflow: hidden; }
+    .glist .gsec { background: none; padding: 12px 14px 4px; font-size: .72rem; letter-spacing: .06em; }
+    .gcard { border: 0; border-radius: 0; padding: 10px 14px; gap: 12px; position: relative; }
+    .gcard + .gcard::before { content: ""; position: absolute; left: 14px; right: 0; top: 0; height: 1px; background: var(--border); }
+    .gsec + .gcard::before { display: none; }
+    .gtime { font-size: 1.3rem; font-weight: 800; letter-spacing: -.03em; width: 58px; font-variant-numeric: tabular-nums; }
+    .gtime small { font-size: .62rem; letter-spacing: .02em; }
+    .gtime.later { color: var(--blue); }
+    .gtitle { font-size: 1rem; font-weight: 700; letter-spacing: -.01em; }
+    .gtag { border-radius: 999px; padding: 0 8px; font-size: .66rem; letter-spacing: .03em; }
+    .gtag.nomi { background: var(--amber-soft); color: var(--amber); }
+    .gtag.takkyu { background: var(--green-soft); color: var(--green); }
+    .gcount { font-size: .78rem; font-variant-numeric: tabular-nums; }
+    .gcount.full { color: var(--amber); }
+    #gNewBtn { border-radius: 999px; background: var(--blue-soft); color: var(--blue); box-shadow: none; padding: 9px 12px; }
+    #gNewBtn:active { background: rgba(10,132,255,.3); filter: none; }
+    .heart { border: 0; background: rgba(255,255,255,.08); transition: transform .5s var(--spring), background-color .2s, color .2s; }
+    .heart:active { transform: scale(.82); transition-duration: .08s; background: rgba(255,255,255,.14); }
+    .heart.on { color: var(--pink); background: rgba(255,55,95,.16); }
+    .heart.on .ic { animation: heartPop .5s var(--spring); }
+    @keyframes heartPop { from { transform: scale(.6); } to { transform: scale(1); } }
+    .ccnt.has { color: var(--pink); }
+    .chatb.has { color: var(--blue); background: var(--blue-soft); }
+    .gdel { background: transparent !important; color: var(--text-muted); box-shadow: none; }
+
+    /* 下から上がる枠：素材（すりガラス）。つかんで下げると閉じる（動きは JS のばね） */
+    .sheet-bg { background: rgba(0,0,0,.45); transition: none; -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); }
+    .sheet, .sheet.show { transform: translate3d(0, var(--sy, 105%), 0); transition: none; border: 0; border-radius: 28px 28px 0 0;
+      background: rgba(30,30,32,.78); -webkit-backdrop-filter: blur(32px) saturate(180%); backdrop-filter: blur(32px) saturate(180%);
+      box-shadow: 0 -12px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.14); will-change: transform; }
+    .sheet-head { padding: 6px 0 12px; cursor: grab; }
+    .sheet-head:active { cursor: grabbing; }
+    .sheet-grip { width: 38px; height: 5px; background: rgba(255,255,255,.28); margin: 2px auto 14px; }
+    .sheet-title { font-size: 1.05rem; font-weight: 700; letter-spacing: -.01em; }
+    .sheet-list .who { border-top: 0; padding: 9px 4px; }
+    .sheet-list .who .av { background: rgba(255,255,255,.1); }
+    .sheet-list .sh { letter-spacing: .06em; padding-top: 14px; }
+    .sheet-in { border-top: 0; padding-top: 10px; }
+    .sheet-in input { border-radius: 999px; padding: 10px 16px; }
+    #gForm input, #gForm button { padding: 10px 14px; font-size: .95rem; }
+    #gForm { gap: 8px; }
+    .gtagbtn { border: 0; background: var(--surface-2); border-radius: 999px; color: var(--text-sub); }
+    .gtagbtn.on { background: var(--blue); color: #fff; box-shadow: 0 3px 12px rgba(10,132,255,.4); }
+
+    /* トースト：すりガラスの粒 */
+    .toast { background: var(--glass); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%); border: 0; box-shadow: 0 8px 28px rgba(0,0,0,.45), inset 0 0 0 1px var(--glass-line); color: var(--text); border-radius: 999px; font-weight: 600; letter-spacing: .01em;
+      transition: transform .5s var(--spring); }
+    .toast.err { color: #ffb4ae; }
+
+    /* タブを切り替えたとき：下から少し上がって現れる */
+    .pane:not([hidden]) { animation: paneIn .45s var(--spring) both; }
+    @keyframes paneIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    /* 動きを減らす設定：ばねや移動をやめ、短い切り替えだけにする */
+    @media (prefers-reduced-motion: reduce) {
+      button, .heart, .toast, .qbtn { transition: background-color .15s, color .15s, opacity .15s; }
+      button:active, .qbtn:active, .heart:active { transform: none; }
+      .pane:not([hidden]) { animation: none; }
+      .heart.on .ic { animation: none; }
+    }
+    /* すりガラスを減らす設定：不透明にする */
+    @media (prefers-reduced-transparency: reduce) {
+      .hero, #buHero, .bnav, .toast, .sheet, .sheet.show { background: #1c1c1e; -webkit-backdrop-filter: none; backdrop-filter: none; }
+      .sheet-bg { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+    }
+    @media (prefers-contrast: more) {
+      :root { --border: rgba(255,255,255,.3); --glass-line: rgba(255,255,255,.5); --text-muted: #c7c7cc; }
+    }
   </style>
 </head>
 <body>
@@ -2049,6 +2220,77 @@
       } else {
         autoOpen = true; openToday();
       }
+    })();
+  </script>
+
+  <script>
+    // 下から上がる枠：ばね（反応の速さ0.32秒）で動き、つかんで下げられ、離した速さを引き継いで閉じる／戻る
+    (() => {
+      const bg = document.getElementById('sheetBg');
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const rubber = (o, dim, c = 0.55) => (o * dim * c) / (dim + c * Math.abs(o));   // 上へ引くと、だんだん重くなる
+      const project = (v, d = 0.998) => (v / 1000) * d / (1 - d);                      // 指を離したあと、慣性でどこまで行くか
+      function control(el, closeFn) {
+        let y = 0, v = 0, target = 0, raf = 0, last = 0, H = 0, dragging = false;
+        const RESPONSE = 0.32, ZETA = 1;   // 揺れ戻しなし（指の勢いで動かしたときだけ、わずかに勢いが残る）
+        const render = () => {
+          el.style.setProperty('--sy', y + 'px');
+          const p = Math.max(0, Math.min(1, 1 - y / H));
+          bg.style.opacity = p; bg.style.webkitBackdropFilter = bg.style.backdropFilter = `blur(${(p * 8).toFixed(1)}px)`;
+        };
+        const settle = () => {
+          if (!el.classList.contains('show')) {
+            el.style.removeProperty('--sy');
+            if (!bg.classList.contains('show')) { bg.style.opacity = ''; bg.style.backdropFilter = bg.style.webkitBackdropFilter = ''; }
+          }
+        };
+        const step = now => {
+          const dt = Math.min((now - last) / 1000, 1 / 30); last = now;
+          const w = 2 * Math.PI / RESPONSE;
+          v += (-w * w * (y - target) - 2 * ZETA * w * v) * dt; y += v * dt; render();
+          if (Math.abs(y - target) < 0.4 && Math.abs(v) < 8) { y = target; v = 0; render(); settle(); return; }
+          raf = requestAnimationFrame(step);
+        };
+        const go = (to, v0) => {
+          target = to; if (v0 !== undefined) v = v0;
+          cancelAnimationFrame(raf);
+          if (reduce) { y = to; v = 0; render(); settle(); return; }
+          last = performance.now(); raf = requestAnimationFrame(step);
+        };
+        // 開く／閉じる（既存の処理は class の付け外しだけをするので、それを見て動かす）
+        new MutationObserver(() => {
+          if (dragging) return;
+          H = el.offsetHeight + 40;
+          if (el.classList.contains('show')) { if (!el.style.getPropertyValue('--sy')) y = H; go(0); }   // 閉じきっているなら下から。閉じている途中なら、いまの位置から戻る
+          else go(H);   // 閉じる：いまの位置・いまの速さから続ける
+        }).observe(el, { attributes: true, attributeFilter: ['class'] });
+        // つかむ
+        const head = el.querySelector('.sheet-head');
+        let startY = 0, y0 = 0, hist = [];
+        head.addEventListener('pointerdown', e => {
+          if (!el.classList.contains('show')) return;
+          H = el.offsetHeight + 40; dragging = true; cancelAnimationFrame(raf);   // 動いている途中でも、そのまま指につく
+          startY = e.clientY; y0 = y; hist = [[e.timeStamp, y]]; head.setPointerCapture(e.pointerId);
+        });
+        head.addEventListener('pointermove', e => {
+          if (!dragging) return;
+          const ny = y0 + (e.clientY - startY);
+          y = ny < 0 ? -rubber(-ny, H) : ny;   // 指の位置に、1:1でついてくる
+          hist.push([e.timeStamp, y]); if (hist.length > 6) hist.shift(); render();
+        });
+        const end = e => {
+          if (!dragging) return; dragging = false;
+          const a = hist.find(h => e.timeStamp - h[0] < 90) || hist[hist.length - 1], b = hist[hist.length - 1];
+          const vel = b[0] > a[0] ? (b[1] - a[1]) / (b[0] - a[0]) * 1000 : 0;   // 離す直前の速さ（px/秒）
+          if (y + project(vel) > H * 0.45) { v = vel; closeFn(); }   // 慣性で行き着く先が下なら閉じる。速さは、そのまま引き継ぐ
+          else go(0, vel);
+        };
+        head.addEventListener('pointerup', end); head.addEventListener('pointercancel', end);
+      }
+      control(document.getElementById('sheet'), () => closeSheet());
+      control(document.getElementById('gForm'), () => openGatherForm(false));
+      // 手応え：押した瞬間に、ごく軽く震える（対応する端末だけ）
+      document.addEventListener('pointerdown', e => { if (e.target.closest('.qbtn, .heart') && navigator.vibrate) navigator.vibrate(6); });
     })();
   </script>
 </body>
