@@ -2048,7 +2048,7 @@
     // 部屋の合言葉：ランダムな16バイトを、記号なしの22文字にしたもの（リンクを短くするため）
     const newSecret = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     // LINEなどのリンクのプレビューは、アドレスごとに覚えられる。プレビューの文面を変えたときに、この数字を上げる
-    const SHARE_LINK_V = '2';
+    const SHARE_LINK_V = '3';
     function renewSecret() {
       if (!confirm(['合言葉を作り直しますか？', '', '・今日の部屋が新しくなります（いまの状況は引き継がれません）', '・古いリンクを開いた端末は、新しいリンクをもう一度開くまで、入れなくなります', '・メンバーに配る前なら、影響はあなたの端末だけです'].join('\n'))) return;
       setSecret(newSecret()); remove('roomKey');
