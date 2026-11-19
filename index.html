@@ -13,6 +13,8 @@
   <meta name="theme-color" content="#0a0a0b">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Ping">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://wcms-92f78-default-rtdb.asia-southeast1.firebasedatabase.app" crossorigin>
   <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="manifest" href="manifest.webmanifest">
@@ -930,9 +932,10 @@
     // 今日のボードを開く（なければ自動で作る）
     // ============================================================
     // 今日の部屋（ロタ・部室・二次会が同じ部屋）を取る。なければ作る
-    async function obtainRoom(day) {
+    async function obtainRoom(day, lite) {
       const rid = await ensureRoomId(day);
       if (!rid) throw new Error('この端末には、まだ設定が入っていません。幹事から配られたリンクを、一度開いてください。そのあと、もう一度開く（またはQRを読み取る）と、使えます。');
+      if (lite) return { rid, room: null };   // 部屋の中身は、このあとの見張り（enterMode）が読む。先に同じものを読まない
       let room = await backend.getRoom(rid);
       if (!room) {
         try { await backend.createRoom(rid, hasFirebase ? { createdAt: Date.now(), expiresAt: day.expiresAt } : demoRoom(day)); } catch (e) {}   // 同時に作った人がいても、先に作られたほうが残る
@@ -949,10 +952,10 @@
       const day = boardDay();
       $('openTitle').textContent = day.label + ' のロタと部室';
       try {
-        // 昔のボードの掃除（期限切れの日だけ消せる）
-        [1, 2, 3].forEach(k => backend.deleteRoom(boardDay(Date.now() - k * 86400000).id).catch(() => {}));
+        // 昔のボードの掃除（期限切れの日だけ消せる）。1日に1回、端末ごとでよい
+        if (load('swept', '') !== day.id) { save('swept', day.id); [1, 2, 3].forEach(k => backend.deleteRoom(boardDay(Date.now() - k * 86400000).id).catch(() => {})); }
 
-        const { rid, room } = await obtainRoom(day);
+        const { rid, room } = await obtainRoom(day, !!myName);
 
         // 一度名前を登録した端末は、そのまま自分として入る
         if (myName) await enterMode(rid);
@@ -1178,13 +1181,21 @@
       } catch (e) { toast('送信に失敗しました：' + (e.message || e), true); }
     }
 
+    let creatingRoom = false, syncedFor = null;
     function onRoomUpdate(data) {
       try { onRoomUpdate_(data); }
       catch (e) { toast('表示中にエラーが起きました：' + (e.message || e), true, 10000); }
     }
     function onRoomUpdate_(data) {
       if (!roomId) return;
+      if (!data && !creatingRoom) {   // 今日の最初の人：部屋がまだない。作ると、見張りにもう一度届く
+        creatingRoom = true;
+        const day = boardDay();
+        backend.createRoom(roomId, hasFirebase ? { createdAt: Date.now(), expiresAt: day.expiresAt } : demoRoom(day)).catch(() => {}).finally(() => { creatingRoom = false; if (roomId && !roomData) backend.getRoom(roomId).then(d => { if (d) onRoomUpdate(d); }).catch(() => {}); });
+        return;
+      }
       if (!data || data.expiresAt <= Date.now()) { finishRoom('今日の分は終了しました'); return; }
+      if (syncedFor !== roomId) { syncedFor = roomId; maybeSyncRoster(data); }   // 名簿の取り込みの確認は、部屋ごとに1回
       roomData = data;
       // 自分の状況はサーバーの内容に合わせる（再読み込み後や、幹事に動かされたときも反映される）
       const mine = (data.people || {})[myKey()];
@@ -2035,7 +2046,6 @@
       catch (e) { show('home'); $('openMsg').textContent = ''; $('homeErr').textContent = 'サーバーに接続できませんでした：' + (e.message || e); return; }
       if (resume) {
         enterMode(todayRid);
-        backend.getRoom(todayRid).then(maybeSyncRoster).catch(() => {});
       } else {
         autoOpen = true; openToday();
       }
