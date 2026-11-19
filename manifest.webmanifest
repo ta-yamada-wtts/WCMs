@@ -1,6 +1,6 @@
 {
-  "name": "WCMs",
-  "short_name": "WCMs",
+  "name": "Ping",
+  "short_name": "Ping",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#1b3f9c",

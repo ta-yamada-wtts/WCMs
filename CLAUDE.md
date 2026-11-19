@@ -1,4 +1,4 @@
-# WCMs 開発メモ（AI向け）
+# Ping 開発メモ（AI向け）
 
 - サークル用アプリ。UI・コメント・説明はすべて日本語
 - 構成は兄弟アプリ `../pinq-editor` と同じ：HTML＋素のJavaScript、ビルドなし、`index.html` 1ファイル
