@@ -400,8 +400,11 @@
     /* 自分のカード：下に浮かぶ、すりガラスの帯。後ろの内容が透けて見える */
     #bushitsu .hero, #pane1 .hero, .hero, #buHero { border: 0; border-radius: 26px; padding: 10px; background: var(--glass); -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
       box-shadow: 0 10px 34px rgba(0,0,0,.5), inset 0 0 0 1px var(--glass-line), inset 0 1px 0 rgba(255,255,255,.12); }
-    #bushitsu .hero { bottom: calc(76px + env(safe-area-inset-bottom)); }
-    #pane1 .hero { bottom: calc(76px + env(safe-area-inset-bottom)); }
+    #bushitsu .hero { bottom: 0; }   /* 下の余白（padding）が、タブの分をもう空けている */
+    body.in-room #bushitsu, body.in-room #room { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }   /* 状況ボタンの帯は、下のタブのすぐ上（隙間をあけない）。浮かせない */
+    body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }   /* 文字を押したとき、灰色に選択されないように */
+    input, textarea { -webkit-user-select: text; user-select: text; }
+    #pane1 .hero { bottom: 0; }
     .hero.shop, .hero.moving, .hero.arrived { border-top-color: transparent; }
     .hero-user { font-size: .95rem; font-weight: 700; letter-spacing: -.005em; }
     #buHero .hero-head { padding: 2px 6px 0; }
@@ -543,8 +546,8 @@
       <div class="card" id="nameCard" hidden>
         <h2>名前登録</h2>
         <div class="namerow">
-          <input id="familyInput" maxlength="14" placeholder="せい（例：やまだ）" autocomplete="off">
-          <input id="givenInput" maxlength="14" placeholder="めい（例：たろう）" autocomplete="off">
+          <input id="familyInput" maxlength="14" placeholder="せい（やまだ）" autocomplete="off">
+          <input id="givenInput" maxlength="14" placeholder="めい（たろう）" autocomplete="off">
         </div>
         <div class="shoplist" id="nameList" hidden></div>
         <p class="hint" id="nameHint"></p>
