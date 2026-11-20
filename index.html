@@ -528,7 +528,12 @@
     /* 名前の登録：大きな見出しと、押しやすい入力欄・ボタン */
     #nameCard { padding: 22px 18px 18px; }
     #nameCard h2 { font-size: 1.5rem; font-weight: 800; line-height: 1.2; margin: 0 0 14px; }
-    #nameCard input { min-height: 50px; font-size: 1rem; border-radius: 14px; }
+    #nameCard .namerow input, #genInput { min-height: 50px; font-size: 1rem; border-radius: 14px; }
+    /* 候補：小さめの行。左は、きれいな丸 */
+    #nameList { gap: 6px; max-height: 220px; }
+    #nameList label { padding: 8px 12px; gap: 10px; border-radius: 12px; font-size: .92rem; min-height: 0; }
+    #nameList input { width: 20px; height: 20px; min-height: 0; border-radius: 50%; }
+    #nameList input[type=radio]:checked::after { inset: 4.5px; }
     #nameOkBtn { min-height: 52px; border-radius: 16px; font-size: 1.02rem; font-weight: 700; margin-top: 8px; box-shadow: 0 6px 20px rgba(10,132,255,.32); }
     #nameCancelBtn { background: transparent; box-shadow: none; color: var(--blue); min-height: 44px; font-weight: 600; }
     #nameCancelBtn:active { background: rgba(255,255,255,.06); }
@@ -1699,7 +1704,7 @@
     function renderPush() {
       const p = pushState(), why = pushBlockedMsg();
       const registered = !why && !!p.k && Notification.permission === 'granted';
-      ['recv', 'send'].forEach(par => setSw(PUSH_SW[par], registered && p[par], !!why));
+      ['recv', 'send'].forEach(par => setSw(PUSH_SW[par], registered && p[par], false));   // 親は、押せないままにしない（押すと、理由を伝える）
       Object.keys(PUSH_PARENT).forEach(ch => {   // 子は、親がオフでも、自分の選びの見た目のまま。行ぜんたいを暗くして、押せなくする
         const parentOn = registered && p[PUSH_PARENT[ch]];
         setSw(PUSH_SW[ch], p[ch], !parentOn);
@@ -1713,8 +1718,9 @@
       if (p.k && p.g) await backend.updatePush(p.g, p.k, fields);
     }
     async function pushRegister(p) {   // 宛先を取って、サーバーに預ける（初回は、端末の許可が出る）
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') return false;
+      // 許可の確認を閉じられたとき、返事が来ないことがある。待ちっぱなしにしない
+      const perm = await Promise.race([Notification.requestPermission(), new Promise(r => setTimeout(() => r('timeout'), 30000))]);
+      if (perm !== 'granted') { if (perm === 'denied') toast('通知が許可されませんでした。もう一度使うには、端末の設定で許可してください', true); return false; }
       const token = await pushToken(), k = await tokenKey(token);
       await backend.setPush(gatherId, k, { token, key: myKey(), t: Date.now(), ...pushPrefs(p) });
       p.k = k; p.g = gatherId; p.t = Date.now(); save('push', p);
@@ -1726,7 +1732,7 @@
       delete p.k; delete p.g; delete p.t; save('push', p);
     }
     async function toggleParent(name) {
-      if (pushBlockedMsg()) return;
+      const why = pushBlockedMsg(); if (why) { toast(why, true); return; }
       const sw = $(PUSH_SW[name]); if (sw.disabled) return; sw.disabled = true;
       try {
         const p = pushState(), registered = !!p.k && Notification.permission === 'granted', wasOn = registered && p[name];
@@ -2405,7 +2411,7 @@
         if (err && err.code === 1) { save('geo', false); geoStop(); renderGeo(); toast('位置情報がブロックされているので、オフにしました', true); }
       }, { enableHighAccuracy: false, maximumAge: 30000, timeout: 30000 });
     }
-    document.addEventListener('visibilitychange', () => { if (document.hidden) geoStop(); else geoStart(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) geoStop(); else { geoStart(); try { renderPush(); } catch (e) {} } });
     async function geoCheck() {
       if (!geoOn() || !geoLast || !roomId || !myName || !roomData || Date.now() - geoLast.timestamp > 10 * 60000) return;
       const { latitude: la, longitude: lo, accuracy: ac } = geoLast.coords;
