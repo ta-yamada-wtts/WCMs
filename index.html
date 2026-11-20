@@ -304,6 +304,8 @@
     .gline { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
     .gline .chip { padding: 0 6px; font-size: 0.75rem; line-height: 1.5; }
     .gcount { cursor: pointer; font-size: 0.75rem; color: var(--text-muted); margin-right: 2px; }
+    .gby { font-size: 0.75rem; color: var(--text-muted); margin-right: 6px; }
+    .gby::after { content: "さんが作成"; }
     .gcount.full { color: #fbbf24; font-weight: 700; }
     .chip.wait { opacity: .65; border-style: dashed; }
     .chatb.has { color: #93c5fd; border-color: rgba(147,197,253,0.5); }
@@ -1299,7 +1301,7 @@
     // ---------- いまの場所：部室にいる(bu) / ロタへ向かう(go) / ロタにいる(rota)。1人1か所だけ ----------
     //  書き込み先：部室 = bushitsu/{キー} {name, st:'in', t}、ロタ = people/{キー} {name, st:'moving'|'arrived', t}
     //  時間切れは、表示の上だけで決める（データは書き換えない。どの端末でも同じ結果になる）
-    const BU_GO_MS = 90 * 60000, BU_IN_MS = 3 * 3600000, ROTA_GO_MS = 30 * 60000, ROTA_IN_MS = 3 * 3600000;
+    const BU_GO_MS = 90 * 60000, BU_IN_MS = 3 * 3600000, ROTA_GO_MS = 30 * 60000, ROTA_IN_MS = 60 * 60000;   // ロタにいる は1時間で消える
     function currentPlaces(data, now = Date.now()) {
       const best = {};
       const take = (key, name, place, t) => { if (!best[key] || t > best[key].t) best[key] = { key, name, place, t }; };   // 万一2か所に残っていたら、新しいほう
@@ -1577,7 +1579,7 @@
           ${sameDay ? `<div class="gtime">${fmtHm(g.at)}<small>から</small></div>` : `<div class="gtime later">${fmtMdShort(g.at)}<small>${fmtWd(g.at)} ${fmtHm(g.at)}から</small></div>`}
           <div class="gmain">
             <div class="gtop"><span class="gtag ${g.tag}">${esc(GTAGS[g.tag])}</span><span class="gtitle">${esc(g.title)}</span></div>
-            ${count ? `<div class="gline"><span class="gcount${full ? ' full' : ''}" data-act="likers">${esc(count)}</span></div>` : ''}
+            <div class="gline">${g.byName ? `<span class="gby">${esc(g.byName)}</span>` : ''}${count ? `<span class="gcount${full ? ' full' : ''}" data-act="likers">${esc(count)}</span>` : ''}</div>
           </div>
           <div class="gheart"><button class="heart${liked ? ' on' : ''}" data-act="like" title="${liked ? '行きたいを取り消す' : '行きたい'}" aria-pressed="${liked}">${ic('heart')}</button><span class="ccnt${g.likes.length ? ' has' : ''}" data-act="likers">${g.likes.length}</span></div>
           <div class="gheart"><button class="heart chatb${g.comments.length ? ' has' : ''}" data-act="cm" title="コメント">${ic('chat')}</button><span class="ccnt${g.comments.length ? ' has' : ''}" data-act="cmsheet">${g.comments.length}</span></div>
