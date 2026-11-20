@@ -16,3 +16,8 @@ Thumbs.db
 
 # Claude Code のローカル設定
 .claude/
+
+# 通知用のサービスアカウントの鍵（絶対にコミットしない）
+*-firebase-adminsdk-*.json
+serviceAccount*.json
+service-account*.json

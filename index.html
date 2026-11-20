@@ -304,6 +304,36 @@
     .gline { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; }
     .gline .chip { padding: 0 6px; font-size: 0.75rem; line-height: 1.5; }
     .gcount { cursor: pointer; font-size: 0.75rem; color: var(--text-muted); margin-right: 2px; }
+    /* アップデートのお知らせ */
+    .upmodal { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,.6); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+    .upmodal[hidden] { display: none; }
+    .upnote { position: relative; width: 100%; max-width: 420px; max-height: 85vh; overflow-y: auto; padding: 18px 18px 14px; border-radius: 22px; background: var(--surface-2); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+    .upnote-title { margin: 0 36px 6px 0; font-weight: 700; font-size: 1rem; }
+    .upnote ul { margin: 0 0 10px; padding-left: 1.2em; font-size: .92rem; line-height: 1.7; }
+    .upnote li[hidden] { display: none; }
+    .upnote-red { color: #ff453a; font-weight: 700; }
+    .upnote .sub { width: 100%; min-height: 42px; font-size: .88rem; background: rgba(255,255,255,.1); }
+    .upnote-x { position: absolute; top: 4px; right: 4px; width: 40px; min-width: 40px; height: 40px; min-height: 40px; margin: 0; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text-muted); font-size: 1.5rem; line-height: 1; }
+    .upnote-x:active { background: var(--surface-2); }
+    /* 設定（iPhone の設定と同じ：角丸のグループに、行とスイッチを並べる） */
+    #pane4 .card { padding: 0; background: none; border: none; box-shadow: none; }
+    .set-head { margin: 14px 16px 6px; font-size: .78rem; color: var(--text-muted); letter-spacing: .02em; }
+    .set-group { background: var(--surface); border-radius: 14px; overflow: hidden; }
+    .set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 14px 8px 16px; font-size: .98rem; }
+    .set-row + .set-row { border-top: 1px solid var(--border); }
+    .set-row.parent { font-weight: 600; }
+    .set-row.dim { opacity: .38; }
+    .set-row.dim .sw:disabled { opacity: 1; }
+    .set-row.child { padding-left: 32px; font-size: .92rem; }
+    .set-foot { margin: 8px 16px 0; font-size: .78rem; line-height: 1.5; color: var(--text-muted); }
+    .sw { flex: none; position: relative; width: 51px; min-width: 51px; height: 31px; min-height: 31px; padding: 0; border: 0; border-radius: 16px; background: rgba(120,120,128,.36); transition: background .25s; margin: 0; }
+    .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,.3); transition: transform .3s var(--spring, cubic-bezier(.3,1.4,.5,1)); }
+    .sw.on { background: #30d158; }
+    .sw.on::after { transform: translateX(20px); }
+    .sw:active::after { width: 31px; }
+    .sw.on:active::after { transform: translateX(16px); }
+    .sw:disabled { opacity: .4; }
+    @media (prefers-reduced-motion: reduce) { .sw, .sw::after { transition: none; } }
     .gby { font-size: 0.75rem; color: var(--text-muted); margin-right: 6px; }
     .gby::after { content: "さんが作成"; }
     .gcount.full { color: #fbbf24; font-weight: 700; }
@@ -489,6 +519,34 @@
       transition: transform .5s var(--spring); }
     .toast.err { color: #ffb4ae; }
 
+    /* ===== 仕上げ：全体の見た目をそろえる（Apple のデザインの考え方） ===== */
+    /* 文字：入力欄やボタンも、画面と同じ書体に。見出しは、かなを少し詰めて、行間を締める */
+    input, select, textarea, button { font-family: inherit; }
+    .date, h2, .gtitle, .upnote-title, .set-head { font-feature-settings: "palt"; }
+    h2 { letter-spacing: -.02em; }
+
+    /* 名前の登録：大きな見出しと、押しやすい入力欄・ボタン */
+    #nameCard { padding: 22px 18px 18px; }
+    #nameCard h2 { font-size: 1.5rem; font-weight: 800; line-height: 1.2; margin: 0 0 14px; }
+    #nameCard input { min-height: 50px; font-size: 1rem; border-radius: 14px; }
+    #nameOkBtn { min-height: 52px; border-radius: 16px; font-size: 1.02rem; font-weight: 700; margin-top: 8px; box-shadow: 0 6px 20px rgba(10,132,255,.32); }
+    #nameCancelBtn { background: transparent; box-shadow: none; color: var(--blue); min-height: 44px; font-weight: 600; }
+    #nameCancelBtn:active { background: rgba(255,255,255,.06); }
+
+    /* イベント：タイトルを2行まで読めるように。「消す」は、右下の小さな文字に */
+    .gcard { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px; row-gap: 0; padding: 12px 14px; }
+    .gmain { min-width: 0; }
+    .gtitle { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
+    .gtop { align-items: flex-start; flex-wrap: wrap; row-gap: 3px; }
+    .gline { margin-top: 3px; }
+    .gby { font-size: .74rem; }
+    .gheart { width: 36px; }
+    .gheart .heart { width: 34px; height: 34px; }
+    .gheart .heart .ic { width: 18px; height: 18px; }
+    .gbtns { grid-column: 2 / -1; width: auto; flex-direction: row; justify-content: flex-end; margin-top: 2px; }
+    .gbtns button { width: auto; padding: 4px 10px; font-size: .78rem; font-weight: 600; color: #ff453a; background: transparent; }
+    .gbtns button:active { background: rgba(255,69,58,.12); }
+
     /* タブを切り替えたとき：下から少し上がって現れる */
     .pane:not([hidden]) { animation: paneIn .45s var(--spring) both; }
     @keyframes paneIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -519,6 +577,7 @@
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
     <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l5 5 9-10"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15z"/><path d="M10 21h4"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
     <symbol id="i-chat" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 1-4.4 16.9L3 21l1.4-4.3A9 9 0 0 1 12 3z"/><g fill="currentColor" stroke="none"><circle cx="8" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="16" cy="12" r="1.2"/></g></symbol>
     <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 12L4 4l5 8-5 8z"/></symbol>
@@ -587,6 +646,7 @@
           </div>
           <button id="apiLinkBtn" class="sub">メンバーに配るリンクをコピー</button>
           <button id="secretNewBtn" class="sub">合言葉を作り直す</button>
+          <button id="pushGroupBtn" class="sub">通知用の合言葉をコピー</button>
           <p class="muted">配るリンクには、部屋の合言葉が入っています。サークルの外には共有しないでください。メンバーは一度そのリンクを開けば、あとは普通に開くだけで使えます。</p>
         </details>
         <details id="qrDetails">
@@ -596,7 +656,7 @@
         </details>
       </div>
 
-      <p class="muted">位置情報は使いません。状況は翌朝4時に自動で消えます。</p>
+      <p class="muted">位置情報は、設定でオンにした人だけが使います。状況は翌朝4時に自動で消えます。</p>
     </section>
 
     <!-- ボード -->
@@ -651,6 +711,35 @@
       </div>
       </div>
 
+      <div class="pane" id="pane4" hidden>
+      <div class="card">
+        <p class="card-title"><span class="t"><svg class="ic"><use href="#i-gear"/></svg>設定</span></p>
+        <div id="pushSection">
+        <p class="set-head">通知を受け取る</p>
+        <div class="set-group">
+          <div class="set-row parent"><span>通知を受け取る</span><button class="sw" id="swRecv" role="switch" aria-checked="false" aria-label="通知を受け取る"></button></div>
+          <div class="set-row child"><span>新しいイベントが作られたとき</span><button class="sw" id="swEv" role="switch" aria-checked="false" aria-label="新しいイベントが作られたとき"></button></div>
+          <div class="set-row child"><span>部室に人が来たとき（1人目・計3人）</span><button class="sw" id="swBu" role="switch" aria-checked="false" aria-label="部室に人が来たとき"></button></div>
+          <div class="set-row child"><span>ロタに人が着いたとき（1人目・計5人・計10人）</span><button class="sw" id="swRota" role="switch" aria-checked="false" aria-label="ロタに人が着いたとき"></button></div>
+        </div>
+        <p class="set-head">通知を送る</p>
+        <div class="set-group">
+          <div class="set-row parent"><span>通知を送る</span><button class="sw" id="swSend" role="switch" aria-checked="false" aria-label="通知を送る"></button></div>
+          <div class="set-row child"><span>自分のイベントに「行きたい」が来たとき</span><button class="sw" id="swHeart" role="switch" aria-checked="false" aria-label="自分のイベントに行きたいが来たとき"></button></div>
+          <div class="set-row child"><span>自分のイベントが満員のとき</span><button class="sw" id="swFull" role="switch" aria-checked="false" aria-label="自分のイベントが満員のとき"></button></div>
+        </div>
+        <p class="set-foot" id="pushMsg"></p>
+        </div>
+        <div id="geoSection">
+        <p class="set-head">位置情報</p>
+        <div class="set-group">
+          <div class="set-row parent"><span>位置情報を使う</span><button class="sw" id="swGeo" role="switch" aria-checked="false" aria-label="位置情報を使う"></button></div>
+        </div>
+        <p class="set-foot" id="geoMsg"></p>
+        </div>
+      </div>
+      </div>
+
       <div class="pane" id="pane3" hidden>
       <div class="card">
         <p class="card-title"><span class="t"><svg class="ic"><use href="#i-users"/></svg>みんなの状況</span><span class="card-title-count" id="summary"></span></p>
@@ -691,11 +780,22 @@
   </main>
 
   <!-- 下のタブ：一次会 / 二次会 / みんなの状況（ボード画面のときだけ出る） -->
+  <!-- アップデートのお知らせ：開いたとき前面に出る。まわりを押しても閉じない（×か「二度と表示しない」だけ） -->
+  <div class="upmodal" id="notice" role="dialog" aria-modal="true" aria-labelledby="noticeTitle" hidden>
+    <div class="upnote">
+        <button class="upnote-x" id="noticeX" aria-label="閉じる">×</button>
+        <p class="upnote-title" id="noticeTitle">アプデが入りました</p>
+        <ul id="noticeList"><li id="noticeLiPush">通知機能の追加（最初はオフ。使いたい方は設定にて、オンにしてください）</li><li>作成者の名前が表示</li><li>位置情報によるロタにいるかの自動判定機能追加（最初はオフです。使いたい方のみ、設定にて、オンに変更してください。<b class="upnote-red">位置情報はロタにいるかの判定のみに使われ、ほかの人に正確な位置を表示させることは決してありません。</b>位置情報はアプリを開いている時のみ、使われます。）</li></ul>
+        <button class="sub" id="noticeNever">この知らせを二度と表示しない</button>
+      </div>
+  </div>
+
   <nav class="bnav" id="bnav" aria-label="画面の切り替え">
     <button data-tab="0" class="on"><svg class="ic"><use href="#i-home"/></svg><span>いま</span></button>
     <button data-tab="1"><svg class="ic"><use href="#i-fork"/></svg><span>一次会</span></button>
     <button data-tab="2"><svg class="ic"><use href="#i-users"/></svg><span>イベント<b class="badge" id="badge2" hidden></b></span></button>
     <button data-tab="3"><svg class="ic"><use href="#i-users"/></svg><span>みんなの状況<b class="badge" id="badge3" hidden></b></span></button>
+    <button data-tab="4"><svg class="ic"><use href="#i-gear"/></svg><span>設定</span></button>
   </nav>
 
   <div class="sheet-bg" id="sheetBg"></div>
@@ -726,6 +826,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 
   <script>
     // ============================================================
@@ -744,6 +845,12 @@
 
     // 一次会（お店を選ぶ・いっしょに行く人）とみんなの状況は、いまは画面に出さない（機能とデータは残してある）。出すときは true
     const SHOW_SHOPS = false;
+    const VAPID_KEY = 'BPYSNyADxS6UNc93hmd6tGJyqUBXtKLbaPwHdil-61lyfO6Ijx3er4dNkElVn-C9U1kijhjthGZKo8v3WZbMjw0';   // Firebase コンソール → プロジェクトの設定 → Cloud Messaging → ウェブプッシュ証明書 の「キーペア」（公開してよい値）。空の間は「設定」タブも出さない
+    // 位置情報（ロタだけ。使う人だけが、設定でオンにする。端末の中だけで使い、サーバーには送らない）
+    // ロタ：高田馬場駅 早稲田口のロータリー（地図の画像から読み取った概算。ずれていたら、ここを直す）
+    const GEO_ROTA = { lat: 35.71318, lng: 139.70473, r: 45 };
+    const GEO_MAX_ACC = 80;   // 位置の誤差がこれ（メートル）より大きいときは、判定しない
+    const SHOW_SETTINGS = !!VAPID_KEY || !!GEO_ROTA;   // 設定タブを出すか
     // 出欠アプリの名簿をボードに取り込む機能。いまは使わない（名前と代は、本人が入力して端末に覚える）。
     // 使うときは true にして、設定画面で出欠アプリのURLを入れ、「メンバーに配るリンク」を配り直す（README 参照）
     const USE_ROSTER = false;
@@ -893,6 +1000,8 @@
       },
       async setGathering(g, e, rec) { await this.gref(g, e).set(rec); },
       async removeGathering(g, e) { await this.gref(g, e).remove(); },
+      async setPush(g, k, rec) { const r = this.db.ref('push/' + g + '/' + k); if (rec) await r.set(rec); else await r.remove(); },   // 通知の宛先（端末ごと）
+      async updatePush(g, k, fields) { await this.db.ref('push/' + g + '/' + k).update(fields); },
       async likeGathering(g, e, key, rec) { const r = this.gref(g, e + '/likes/' + key); if (rec) await r.set(rec); else await r.remove(); },   // 行きたい（ハート）
       async setComment(g, e, cid, rec) { const r = this.gref(g, e + '/comments/' + cid); if (rec) await r.set(rec); else await r.remove(); },   // コメント（イベントが消えるとき、いっしょに消える）
       async setGen(id, key, g) { const r = this.ref(id, 'rosterGen/' + key); if (g) await r.set(g); else await r.remove(); },   // 自分で選んだ代
@@ -955,6 +1064,8 @@
         cb(this.greadAll()[g] || null);
         return () => { this.glisteners = this.glisteners.filter(y => y !== x); };
       },
+      async setPush() {},
+      async updatePush() {},
       async setGathering(g, e, rec) { const all = this.greadAll(); all[g] = all[g] || {}; all[g][e] = rec; this.gwriteAll(all); },
       async removeGathering(g, e) { const all = this.greadAll(); if (all[g]) { delete all[g][e]; this.gwriteAll(all); } },
       async setComment(g, e, cid, rec) {
@@ -1027,19 +1138,22 @@
     function show(id) {
       document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
       document.body.classList.toggle('in-room', id === 'room' || id === 'bushitsu');
+      try { renderNotice(); } catch (e) {}   // 起動の途中は、まだ準備ができていないことがある
     }
     // 下のタブ：いま(0) / 一次会(1) / 二次会(2) / みんなの状況(3)
     function setTab(n) {
       closeSheet();
-      if (n !== 0 && n !== 2 && !SHOW_SHOPS) n = 0;
+      if (n !== 0 && n !== 2 && !(n === 4 && SHOW_SETTINGS) && !SHOW_SHOPS) n = 0;
+      if (n === 4) { renderPush(); renderGeo(); }
       try { sessionStorage.setItem(STORE_PREFIX + 'tab', String(n)); } catch (e) {}   // 読み込み直しても、同じタブに戻れるように
       show(n === 0 ? 'bushitsu' : 'room');
-      [1, 2, 3].forEach(i => { $('pane' + i).hidden = i !== n; });
+      [1, 2, 3, 4].forEach(i => { $('pane' + i).hidden = i !== n; });
       document.querySelectorAll('#bnav button').forEach(b => b.classList.toggle('on', +b.dataset.tab === n));
       $(n === 0 ? 'bushitsu' : 'room').scrollTop = 0;
     }
     document.querySelectorAll('#bnav button').forEach(b => {
       if (!SHOW_SHOPS && (b.dataset.tab === '1' || b.dataset.tab === '3')) b.hidden = true;
+      if (b.dataset.tab === '4' && !SHOW_SETTINGS) b.hidden = true;   // 通知の鍵も位置の座標も入るまで、設定タブは出さない
       b.onclick = () => setTab(+b.dataset.tab);
     });
     function fmtRemain(ms) {
@@ -1257,6 +1371,7 @@
       if (!gen) { $('homeErr').textContent = '代を入力してください'; return; }
       if (!/^\d{1,3}$/.test(gen)) { $('homeErr').textContent = '代は数字で入力してください（例：65）'; return; }
       myName = name; save('name', myName); save('gen', gen);
+      setTimeout(() => { try { renderNotice(); } catch (e) {} }, 600);   // 名前を入れたあとに、お知らせを出す
       const id = pending.id;
       hideNamePicker();
       enterMode(id);
@@ -1301,14 +1416,14 @@
     // ---------- いまの場所：部室にいる(bu) / ロタへ向かう(go) / ロタにいる(rota)。1人1か所だけ ----------
     //  書き込み先：部室 = bushitsu/{キー} {name, st:'in', t}、ロタ = people/{キー} {name, st:'moving'|'arrived', t}
     //  時間切れは、表示の上だけで決める（データは書き換えない。どの端末でも同じ結果になる）
-    const BU_GO_MS = 90 * 60000, BU_IN_MS = 3 * 3600000, ROTA_GO_MS = 30 * 60000, ROTA_IN_MS = 60 * 60000;   // ロタにいる は1時間で消える
+    const BU_GO_MS = 90 * 60000, BU_IN_MS = 2 * 3600000, ROTA_GO_MS = 30 * 60000, ROTA_IN_MS = 60 * 60000;   // ロタにいる は1時間で消える
     function currentPlaces(data, now = Date.now()) {
       const best = {};
       const take = (key, name, place, t) => { if (!best[key] || t > best[key].t) best[key] = { key, name, place, t }; };   // 万一2か所に残っていたら、新しいほう
       Object.entries((data && data.bushitsu) || {}).forEach(([k, b]) => {
         if (!b) return;
         let t = b.t || 0;
-        if (b.st === 'going') {   // 部室へ向かうは1時間半で、部室にいるになる（そこから3時間で外れる）
+        if (b.st === 'going') {   // 部室へ向かうは1時間半で、部室にいるになる（そこから2時間で外れる）
           if (now - t < BU_GO_MS) { take(k, b.name, 'bgo', t); return; }
           t += BU_GO_MS;
         } else if (b.st !== 'in') return;
@@ -1378,6 +1493,7 @@
       if (mine) { myStatus = mine.st; myShop = mine.shop || ''; }
       else { myStatus = 'none'; myShop = ''; }
       render();   // 二次会の画面と、「いま」の画面（最後に renderBushitsu）
+      geoCheck();
     }
 
     function shopEntries() {
@@ -1539,7 +1655,111 @@
         gatherId = g;
         unwatchG = backend.watchGatherings(g, onGatherUpdate);
       } catch (e) {}
+      renderPush(); refreshPush();
     }
+
+    // ---------- 通知（プッシュ通知）：下のバーの「設定」から、各自がオン・オフを選ぶ ----------
+    //  親のスイッチ（通知を受け取る／通知を送る）と、その中の子のスイッチ。子は、親がオフの間はオフに見えて押せないが、
+    //  自分の選びは覚えていて、親をオンに戻すと、オンだったものはオンに戻る
+    //  端末が通知をオンにすると、宛先（トークン）と選びを push/{グループ}/{端末ごとのキー} に保存する。
+    //  送るのは出欠アプリ側（Apps Script）。ここは、宛先と選びを預けるだけ
+    const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isStandalone = () => navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+    const pushCapable = () => hasFirebase && !!VAPID_KEY && 'serviceWorker' in navigator && 'Notification' in window && 'PushManager' in window && typeof firebase.messaging === 'function';
+    // 初期値：親はオフ（押した最初の1回で、端末の許可が出る）。子は、イベント作成・満員がオン、そのほかはオフ
+    const PUSH_DEF = { recv: false, send: false, ev: true, full: true, heart: false, bu: false, rota: false };
+    const PUSH_KEYS = Object.keys(PUSH_DEF);
+    const PUSH_SW = { recv: 'swRecv', send: 'swSend', ev: 'swEv', bu: 'swBu', rota: 'swRota', heart: 'swHeart', full: 'swFull' };
+    const PUSH_PARENT = { ev: 'recv', bu: 'recv', rota: 'recv', heart: 'send', full: 'send' };
+    const pushState = () => ({ ...PUSH_DEF, ...(load('push', null) || {}) });
+    const pushPrefs = p => Object.fromEntries(PUSH_KEYS.map(k => [k, !!p[k]]));
+    async function tokenKey(token) {
+      const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)));
+      return Array.from(h, b => b.toString(16).padStart(2, '0')).join('').slice(0, 20);
+    }
+    async function pushToken() {
+      const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+      await navigator.serviceWorker.ready;
+      const token = await firebase.messaging().getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+      if (!token) throw new Error('宛先を取得できませんでした');
+      return token;
+    }
+    function setSw(id, on, disabled) {
+      const el = $(id);
+      el.classList.toggle('on', !!on); el.setAttribute('aria-checked', on ? 'true' : 'false'); el.disabled = !!disabled;
+    }
+    function pushBlockedMsg() {
+      if (!hasFirebase) return 'お試しモードでは、通知は使えません。';
+      if (isIos && !isStandalone()) return '通知を受け取るには、ブラウザの共有ボタンから「ホーム画面に追加」して、そのアプリから開いてください。';
+      if (!pushCapable()) return 'この端末のブラウザは、通知に対応していません。';
+      if (Notification.permission === 'denied') return '通知がブロックされています。端末の設定で、このアプリの通知を許可してください。';
+      if (!gatherId) return '準備中です。少し待ってからもう一度開いてください。';
+      return '';
+    }
+    function renderPush() {
+      const p = pushState(), why = pushBlockedMsg();
+      const registered = !why && !!p.k && Notification.permission === 'granted';
+      ['recv', 'send'].forEach(par => setSw(PUSH_SW[par], registered && p[par], !!why));
+      Object.keys(PUSH_PARENT).forEach(ch => {   // 子は、親がオフでも、自分の選びの見た目のまま。行ぜんたいを暗くして、押せなくする
+        const parentOn = registered && p[PUSH_PARENT[ch]];
+        setSw(PUSH_SW[ch], p[ch], !parentOn);
+        $(PUSH_SW[ch]).closest('.set-row').classList.toggle('dim', !parentOn);
+      });
+      $('pushMsg').textContent = why || '通知は、アプリを閉じていても届きます。';
+    }
+    // 保存したものと、サーバーの記録をそろえる
+    async function pushSave(p, fields) {
+      save('push', p);
+      if (p.k && p.g) await backend.updatePush(p.g, p.k, fields);
+    }
+    async function pushRegister(p) {   // 宛先を取って、サーバーに預ける（初回は、端末の許可が出る）
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return false;
+      const token = await pushToken(), k = await tokenKey(token);
+      await backend.setPush(gatherId, k, { token, key: myKey(), t: Date.now(), ...pushPrefs(p) });
+      p.k = k; p.g = gatherId; p.t = Date.now(); save('push', p);
+      return true;
+    }
+    async function pushUnregister(p) {   // 親が両方オフになったら、宛先も消す。子の選びは、端末に残す
+      try { if (p.k && p.g) await backend.setPush(p.g, p.k, null); } catch (e) {}
+      try { await firebase.messaging().deleteToken(); } catch (e) {}
+      delete p.k; delete p.g; delete p.t; save('push', p);
+    }
+    async function toggleParent(name) {
+      if (pushBlockedMsg()) return;
+      const sw = $(PUSH_SW[name]); if (sw.disabled) return; sw.disabled = true;
+      try {
+        const p = pushState(), registered = !!p.k && Notification.permission === 'granted', wasOn = registered && p[name];
+        if (wasOn) {
+          p[name] = false;
+          if (!p.recv && !p.send) { await pushUnregister(p); toast('通知を止めました'); }
+          else await pushSave(p, { [name]: false });
+        } else {
+          p[name] = true;
+          if (!registered) { delete p.k; if (!(await pushRegister(p))) { p[name] = false; save('push', p); } else toast('通知をオンにしました'); }
+          else await pushSave(p, { [name]: true });
+        }
+      } catch (e) { toast('通知を設定できませんでした：' + (e.message || e), true); }
+      renderPush();
+    }
+    async function togglePref(name) {
+      const p = pushState(); if (!p.k || !p[PUSH_PARENT[name]]) return;
+      p[name] = !p[name]; save('push', p); renderPush();
+      try { await pushSave(p, { [name]: p[name] }); } catch (e) { toast('保存できませんでした：' + (e.message || e), true); }
+    }
+    // 宛先は変わることがある。オンの端末は、1日1回、宛先を確かめて書き直す
+    async function refreshPush() {
+      try {
+        const p = pushState();
+        if (!p.k || !pushCapable() || Notification.permission !== 'granted' || !gatherId) return;
+        if (p.g === gatherId && Date.now() - (p.t || 0) < 86400000) return;
+        const token = await pushToken(), k = await tokenKey(token);
+        if (p.k !== k || p.g !== gatherId) await backend.setPush(p.g, p.k, null).catch(() => {});
+        await backend.setPush(gatherId, k, { token, key: myKey(), t: Date.now(), ...pushPrefs(p) });
+        p.k = k; p.g = gatherId; p.t = Date.now(); save('push', p);
+      } catch (e) {}
+    }
+
     function stopGatherings() { if (unwatchG) { unwatchG(); unwatchG = null; } gatherId = null; gatherData = null; }
     function onGatherUpdate(data) {
       gatherData = data && typeof data === 'object' ? data : {};
@@ -2168,6 +2388,77 @@
     setupSuggest('shopSearch', 'shopSug', info => addShop(info), () => shopEntries().map(s => s.name), () => shopMemo, REGULAR_SHOPS);
     $('withSearch').oninput = renderWith;
     $('gNewBtn').onclick = () => openGatherForm(true);
+    // ---------- 位置情報（使う人だけ。アプリを開いている間だけ見る。位置は端末の中だけで使う） ----------
+    //  ロタ：範囲に入ったら、自動で「ロタにいる」にする（1日1回だけ。あとで取り消しても、勝手に戻さない）
+    const geoOn = () => load('geo', false) === true;
+    const geoSupported = () => 'geolocation' in navigator;
+    function geoDist(la1, lo1, la2, lo2) {   // 2点の距離（メートル）
+      const R = 6371000, rad = Math.PI / 180, dLa = (la2 - la1) * rad, dLo = (lo2 - lo1) * rad;
+      const h = Math.sin(dLa / 2) ** 2 + Math.cos(la1 * rad) * Math.cos(la2 * rad) * Math.sin(dLo / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    }
+    let geoWatch = null, geoLast = null;
+    function geoStop() { if (geoWatch !== null) { try { navigator.geolocation.clearWatch(geoWatch); } catch (e) {} geoWatch = null; } }
+    function geoStart() {
+      if (geoWatch !== null || !geoOn() || !geoSupported() || document.hidden) return;
+      geoWatch = navigator.geolocation.watchPosition(pos => { geoLast = pos; geoCheck(); }, err => {
+        if (err && err.code === 1) { save('geo', false); geoStop(); renderGeo(); toast('位置情報がブロックされているので、オフにしました', true); }
+      }, { enableHighAccuracy: false, maximumAge: 30000, timeout: 30000 });
+    }
+    document.addEventListener('visibilitychange', () => { if (document.hidden) geoStop(); else geoStart(); });
+    async function geoCheck() {
+      if (!geoOn() || !geoLast || !roomId || !myName || !roomData || Date.now() - geoLast.timestamp > 10 * 60000) return;
+      const { latitude: la, longitude: lo, accuracy: ac } = geoLast.coords;
+      if (!(ac <= GEO_MAX_ACC)) return;   // 誤差が大きいときは、判定しない
+      const today = boardDay().id, cur = myPlace(roomData);
+      const inside = z => z && geoDist(la, lo, z.lat, z.lng) <= z.r;
+      if (inside(GEO_ROTA)) {
+        if (load('geoRota', '') !== today) {
+          save('geoRota', today);   // 先に印を付ける（1日1回だけ）
+          if (!(cur && cur.place === 'rota') && await setPlace('rota')) toast('ロタに着いたので、「ロタにいる」にしました', false, 4000);
+        }
+      }
+    }
+    function renderGeo() {
+      $('geoSection').hidden = !GEO_ROTA;
+      $('pushSection').hidden = !VAPID_KEY;
+      setSw('swGeo', geoOn(), !geoSupported());
+      $('geoMsg').textContent = geoSupported()
+        ? '使うのは、アプリを開いている間だけです。位置は端末の中だけで使い、サーバーには送りません。ロタの近くに着くと、自動で「ロタにいる」になります。'
+        : 'この端末では、位置情報を使えません。';
+    }
+    $('swGeo').onclick = () => {
+      const sw = $('swGeo'); if (sw.disabled) return;
+      if (geoOn()) { save('geo', false); geoStop(); geoLast = null; renderGeo(); return; }
+      sw.disabled = true;
+      navigator.geolocation.getCurrentPosition(pos => {   // 初回は、端末の許可が出る
+        save('geo', true); geoLast = pos; renderGeo(); geoStart(); geoCheck();
+      }, err => {
+        renderGeo();
+        toast(err && err.code === 1 ? '位置情報が許可されていません。端末の設定で許可してください' : '位置を取得できませんでした', true, 4000);
+      }, { enableHighAccuracy: false, timeout: 20000 });
+    };
+    geoStart();
+    $('swRecv').onclick = () => toggleParent('recv');
+    $('swSend').onclick = () => toggleParent('send');
+    ['ev', 'bu', 'rota', 'heart', 'full'].forEach(k => { $(PUSH_SW[k]).onclick = () => togglePref(k); });
+    // アップデートのお知らせ：×はその日だけ閉じる（日を跨ぐと、また出る）。「二度と表示しない」は、ずっと出さない。公開から3週間たつと、ぜんぶ出さない
+    const NOTICE_UNTIL = new Date('2026-12-11T00:00:00+09:00').getTime();
+    function renderNotice() {
+      const st = load('notice1', {}) || {};
+      $('notice').hidden = !(!!myName && document.body.classList.contains('in-room') && Date.now() < NOTICE_UNTIL && !st.never && st.day !== boardDay().id);
+    }
+    $('noticeX').onclick = () => { const st = load('notice1', {}) || {}; st.day = boardDay().id; save('notice1', st); renderNotice(); };
+    $('noticeNever').onclick = () => { const st = load('notice1', {}) || {}; st.never = true; save('notice1', st); renderNotice(); };
+    renderNotice();
+    $('swFull').onclick = () => togglePref('full');
+    $('pushGroupBtn').onclick = async () => {
+      const secret = await restoreSecret();
+      if (!secret) { $('homeErr').textContent = '合言葉が入っていない端末では、コピーできません'; return; }
+      const done = () => toast('通知用の合言葉をコピーしました。人には見せないでください', false, 4000);
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(secret).then(done, () => prompt('この合言葉をコピーしてください', secret));
+      else prompt('この合言葉をコピーしてください', secret);
+    };
     const sheetPost = () => { if (sheetKey && postComment(sheetKey, $('sheetInput').value)) $('sheetInput').value = ''; };
     $('sheetSend').onclick = sheetPost;
     $('sheetInput').onkeydown = e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); sheetPost(); } };
@@ -2214,7 +2505,7 @@
       const resume = !!myName && !!todayRid && load('lastRoom', '') === todayRid;
       if (resume) {
         try { startTab = +sessionStorage.getItem(STORE_PREFIX + 'tab') || 0; } catch (e) {}
-        if (startTab !== 2 && !(SHOW_SHOPS && (startTab === 1 || startTab === 3))) startTab = 0;
+        if (startTab !== 2 && !(startTab === 4 && SHOW_SETTINGS) && !(SHOW_SHOPS && (startTab === 1 || startTab === 3))) startTab = 0;
         $('buDate').textContent = $('roomDate').textContent = today.label; $('remain').textContent = '読み込み中…';
         show(startTab ? 'room' : 'bushitsu');
       }
@@ -2267,7 +2558,7 @@
           if (dragging) return;
           H = el.offsetHeight + 40;
           if (el.classList.contains('show')) { if (!el.style.getPropertyValue('--sy')) y = H; go(0); }   // 閉じきっているなら下から。閉じている途中なら、いまの位置から戻る
-          else go(H);   // 閉じる：いまの位置・いまの速さから続ける
+          else if (el.style.getPropertyValue('--sy')) go(H);   // 閉じる：いまの位置・いまの速さから続ける（もう閉じきっているなら、何もしない）
         }).observe(el, { attributes: true, attributeFilter: ['class'] });
         // つかむ
         const head = el.querySelector('.sheet-head');
