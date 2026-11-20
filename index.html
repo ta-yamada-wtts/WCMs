@@ -872,8 +872,8 @@
     const GEO_MAX_ACC = 80;   // 位置の誤差がこれ（メートル）より大きいときは、判定しない
     // 管理者の合言葉（設定を出すために必要）。合言葉そのものは入っていない（計算した「確かめの値」だけ。ここは公開してよい）。
 // 未設定のうちは、#admin を開くと、合言葉を決める画面が出る。出てきた2行を、ここに貼る
-const ADMIN_SALT = '';
-const ADMIN_CHECK = '';
+const ADMIN_SALT = 'da1fc60eb1ef18e3ba969aa66ebdacac';
+const ADMIN_CHECK = '8d178c112b12f8680b2d1f0c9bf9044abc81d675b920ee6e9e5e71d05149ff15';
 const SHOW_SETTINGS = !!VAPID_KEY || !!GEO_ROTA;   // 設定タブを出すか
     // 出欠アプリの名簿をボードに取り込む機能。いまは使わない（名前と代は、本人が入力して端末に覚える）。
     // 使うときは true にして、設定画面で出欠アプリのURLを入れ、「メンバーに配るリンク」を配り直す（README 参照）
