@@ -728,6 +728,7 @@
           <div class="set-row child"><span>ロタに人が着いたとき（1人目・計5人・計10人）</span><button class="sw" id="swRota" role="switch" aria-checked="false" aria-label="ロタに人が着いたとき"></button></div>
           <div class="set-row child"><span>自分のイベントに「行きたい」が来たとき</span><button class="sw" id="swHeart" role="switch" aria-checked="false" aria-label="自分のイベントに行きたいが来たとき"></button></div>
           <div class="set-row child"><span>自分のイベントが満員のとき</span><button class="sw" id="swFull" role="switch" aria-checked="false" aria-label="自分のイベントが満員のとき"></button></div>
+          <div class="set-row child"><span>行くイベントにコメントが書き込まれたとき</span><button class="sw" id="swCm" role="switch" aria-checked="false" aria-label="行くイベントにコメントが書き込まれたとき"></button></div>
         </div>
         <p class="set-head">通知を送る</p>
         <div class="set-group">
@@ -992,9 +993,9 @@
         const fn = r.on('value', s => cb(s.val()), e => toast('読み込めませんでした：' + (e.message || e), true));
         return () => r.off('value', fn);
       },
-      async setPeople(id, map) { await this.ref(id, 'people').update(map); },
+      async setPeople(id, map) { await this.ref(id, 'people').update(map); pushKick(); },
       // 部室にいる人（一次会・二次会の状況とは別。bushitsu/{名前のキー} = { name, t }）
-      async setBushitsu(id, key, rec) { const r = this.ref(id, 'bushitsu/' + key); if (rec) await r.set(rec); else await r.remove(); },
+      async setBushitsu(id, key, rec) { const r = this.ref(id, 'bushitsu/' + key); if (rec) { await r.set(rec); pushKick(); } else await r.remove(); },
       async removePerson(id, key) { await this.ref(id, 'people/' + key).remove(); },
       // イベント：gatherings/{合言葉から作った名前}/{イベントのID} = { title, tag, at, exp, cap, by, byName, likes:{キー:{name,t}}, comments:{…} }
       // 部屋（1日ごと）とは別の置き場所。開催日が過ぎるまで残る
@@ -1004,12 +1005,12 @@
         const fn = r.on('value', s => cb(s.val()), () => {});
         return () => r.off('value', fn);
       },
-      async setGathering(g, e, rec) { await this.gref(g, e).set(rec); },
+      async setGathering(g, e, rec) { await this.gref(g, e).set(rec); pushKick(); },
       async removeGathering(g, e) { await this.gref(g, e).remove(); },
       async setPush(g, k, rec) { const r = this.db.ref('push/' + g + '/' + k); if (rec) await r.set(rec); else await r.remove(); },   // 通知の宛先（端末ごと）
       async updatePush(g, k, fields) { await this.db.ref('push/' + g + '/' + k).update(fields); },
-      async likeGathering(g, e, key, rec) { const r = this.gref(g, e + '/likes/' + key); if (rec) await r.set(rec); else await r.remove(); },   // 行きたい（ハート）
-      async setComment(g, e, cid, rec) { const r = this.gref(g, e + '/comments/' + cid); if (rec) await r.set(rec); else await r.remove(); },   // コメント（イベントが消えるとき、いっしょに消える）
+      async likeGathering(g, e, key, rec) { const r = this.gref(g, e + '/likes/' + key); if (rec) { await r.set(rec); pushKick(); } else await r.remove(); },   // 行きたい（ハート）
+      async setComment(g, e, cid, rec) { const r = this.gref(g, e + '/comments/' + cid); if (rec) { await r.set(rec); pushKick(); } else await r.remove(); },   // コメント（イベントが消えるとき、いっしょに消える）
       async setGen(id, key, g) { const r = this.ref(id, 'rosterGen/' + key); if (g) await r.set(g); else await r.remove(); },   // 自分で選んだ代
       async addShop(id, key, name) { await this.ref(id, 'shops/' + key).set(name); },
       async removeShop(id, key) { await this.ref(id, 'shops/' + key).remove(); await this.ref(id, 'shopMin/' + key).remove(); await this.ref(id, 'shopUrl/' + key).remove(); await this.ref(id, 'hpShops/' + key).remove(); },
@@ -1194,6 +1195,16 @@
       }
       if (!json.ok && json.error === 'forbidden') throw new Error('合言葉が合いません。幹事から配られた新しいリンクを、一度開いてください。');
       if (!json.ok) throw new Error('出欠アプリから名簿を取り込めませんでした');
+    }
+    // 書き込みのすぐあとに、出欠アプリのサーバーへ「通知の見張りを今まわして」と合図する（待たない。失敗しても、5分ごとの見張りが拾う）。
+    // 合図は、まとめて1回（1.5秒の間に何度あっても1回）。結果は見ない
+    let kickTimer = null;
+    function pushKick() {
+      if (!(hasFirebase && hasApi() && joinKey) || kickTimer) return;
+      kickTimer = setTimeout(() => {
+        kickTimer = null;
+        try { fetch(api.url + (api.url.includes('?') ? '&' : '?') + 'api=pushKick&s=' + encodeURIComponent(joinKey), { keepalive: true }).catch(() => {}); } catch (e) {}
+      }, 1500);
     }
     // 名簿が古ければ、裏で取り込み直す（画面は待たせない）。使わない設定のときは何もしない
     function maybeSyncRoster(room) {
@@ -1674,10 +1685,10 @@
     const isStandalone = () => navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
     const pushCapable = () => hasFirebase && !!VAPID_KEY && 'serviceWorker' in navigator && 'Notification' in window && 'PushManager' in window && typeof firebase.messaging === 'function';
     // 初期値：親はオフ（押した最初の1回で、端末の許可が出る）。子は、イベント作成・満員がオン、そのほかはオフ
-    const PUSH_DEF = { recv: false, send: false, ev: true, full: true, heart: false, bu: false, rota: false, mk: true };
+    const PUSH_DEF = { recv: false, send: false, ev: true, full: true, heart: false, bu: false, rota: false, mk: true, cm: false };
     const PUSH_KEYS = Object.keys(PUSH_DEF);
-    const PUSH_SW = { recv: 'swRecv', send: 'swSend', ev: 'swEv', bu: 'swBu', rota: 'swRota', heart: 'swHeart', full: 'swFull', mk: 'swMk' };
-    const PUSH_PARENT = { ev: 'recv', bu: 'recv', rota: 'recv', heart: 'recv', full: 'recv', mk: 'send' };
+    const PUSH_SW = { recv: 'swRecv', send: 'swSend', ev: 'swEv', bu: 'swBu', rota: 'swRota', heart: 'swHeart', full: 'swFull', mk: 'swMk', cm: 'swCm' };
+    const PUSH_PARENT = { ev: 'recv', bu: 'recv', rota: 'recv', heart: 'recv', full: 'recv', cm: 'recv', mk: 'send' };
     const pushState = () => ({ ...PUSH_DEF, ...(load('push', null) || {}) });
     const pushPrefs = p => Object.fromEntries(PUSH_KEYS.map(k => [k, !!p[k]]));
     async function tokenKey(token) {
@@ -2449,7 +2460,7 @@
     geoStart();
     $('swRecv').onclick = () => toggleParent('recv');
     $('swSend').onclick = () => toggleParent('send');
-    ['ev', 'bu', 'rota', 'heart', 'full', 'mk'].forEach(k => { $(PUSH_SW[k]).onclick = () => togglePref(k); });
+    ['ev', 'bu', 'rota', 'heart', 'full', 'cm', 'mk'].forEach(k => { $(PUSH_SW[k]).onclick = () => togglePref(k); });
     // アップデートのお知らせ：×はその日だけ閉じる（日を跨ぐと、また出る）。「二度と表示しない」は、ずっと出さない。公開から3週間たつと、ぜんぶ出さない
     const NOTICE_UNTIL = new Date('2026-12-11T00:00:00+09:00').getTime();
     function renderNotice() {

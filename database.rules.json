@@ -23,7 +23,7 @@
         ".read": "auth != null && $g.matches(/^g_[0-9a-f]{16}$/)",
         "$k": {
           ".write": "auth != null && $g.matches(/^g_[0-9a-f]{16}$/) && $k.matches(/^[0-9a-f]{20}$/)",
-          ".validate": "newData.hasChildren(['token', 'key', 't']) && newData.child('token').isString() && newData.child('token').val().length >= 20 && newData.child('token').val().length <= 400 && newData.child('key').isString() && newData.child('key').val().length <= 30 && newData.child('t').isNumber() && (!newData.hasChild('ev') || newData.child('ev').isBoolean()) && (!newData.hasChild('full') || newData.child('full').isBoolean()) && (!newData.hasChild('heart') || newData.child('heart').isBoolean()) && (!newData.hasChild('mk') || newData.child('mk').isBoolean()) && (!newData.hasChild('bu') || newData.child('bu').isBoolean()) && (!newData.hasChild('recv') || newData.child('recv').isBoolean()) && (!newData.hasChild('send') || newData.child('send').isBoolean()) && (!newData.hasChild('rota') || newData.child('rota').isBoolean())"
+          ".validate": "newData.hasChildren(['token', 'key', 't']) && newData.child('token').isString() && newData.child('token').val().length >= 20 && newData.child('token').val().length <= 400 && newData.child('key').isString() && newData.child('key').val().length <= 30 && newData.child('t').isNumber() && (!newData.hasChild('ev') || newData.child('ev').isBoolean()) && (!newData.hasChild('full') || newData.child('full').isBoolean()) && (!newData.hasChild('heart') || newData.child('heart').isBoolean()) && (!newData.hasChild('mk') || newData.child('mk').isBoolean()) && (!newData.hasChild('cm') || newData.child('cm').isBoolean()) && (!newData.hasChild('bu') || newData.child('bu').isBoolean()) && (!newData.hasChild('recv') || newData.child('recv').isBoolean()) && (!newData.hasChild('send') || newData.child('send').isBoolean()) && (!newData.hasChild('rota') || newData.child('rota').isBoolean())"
         }
       }
     },
@@ -42,6 +42,15 @@
         "$e": {
           ".write": "auth != null && $g.matches(/^g_[0-9a-f]{16}$/) && $e.matches(/^[0-9a-z]{6,24}$/)",
           "$k": { ".validate": "newData.isNumber()" }
+        }
+      }
+    },
+    "pushCmt": {
+      "$g": {
+        ".read": "auth != null && $g.matches(/^g_[0-9a-f]{16}$/)",
+        "$e": {
+          ".write": "auth != null && $g.matches(/^g_[0-9a-f]{16}$/) && $e.matches(/^[0-9a-z]{6,24}$/)",
+          "$c": { ".validate": "newData.isNumber()" }
         }
       }
     },
