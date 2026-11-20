@@ -797,6 +797,19 @@
       </div>
   </div>
 
+  <!-- 管理者の合言葉 -->
+  <div class="upmodal" id="adminBox" role="dialog" aria-modal="true" aria-labelledby="adminTitle" hidden>
+    <div class="upnote">
+      <p class="upnote-title" id="adminTitle">管理者の合言葉</p>
+      <input id="adminPass" type="password" autocomplete="off" placeholder="合言葉">
+      <input id="adminPass2" type="password" autocomplete="off" placeholder="もう一度" hidden>
+      <textarea id="adminOut" readonly hidden rows="4" style="width:100%;margin-top:8px"></textarea>
+      <p class="hint" id="adminMsg"></p>
+      <button id="adminOk">OK</button>
+      <button id="adminCancel" class="sub">やめる</button>
+    </div>
+  </div>
+
   <nav class="bnav" id="bnav" aria-label="画面の切り替え">
     <button data-tab="0" class="on"><svg class="ic"><use href="#i-home"/></svg><span>いま</span></button>
     <button data-tab="1"><svg class="ic"><use href="#i-fork"/></svg><span>一次会</span></button>
@@ -857,7 +870,11 @@
     // ロタ：高田馬場駅 早稲田口のロータリー（地図の画像から読み取った概算。ずれていたら、ここを直す）
     const GEO_ROTA = { lat: 35.71318, lng: 139.70473, r: 45 };
     const GEO_MAX_ACC = 80;   // 位置の誤差がこれ（メートル）より大きいときは、判定しない
-    const SHOW_SETTINGS = !!VAPID_KEY || !!GEO_ROTA;   // 設定タブを出すか
+    // 管理者の合言葉（設定を出すために必要）。合言葉そのものは入っていない（計算した「確かめの値」だけ。ここは公開してよい）。
+// 未設定のうちは、#admin を開くと、合言葉を決める画面が出る。出てきた2行を、ここに貼る
+const ADMIN_SALT = '';
+const ADMIN_CHECK = '';
+const SHOW_SETTINGS = !!VAPID_KEY || !!GEO_ROTA;   // 設定タブを出すか
     // 出欠アプリの名簿をボードに取り込む機能。いまは使わない（名前と代は、本人が入力して端末に覚える）。
     // 使うときは true にして、設定画面で出欠アプリのURLを入れ、「メンバーに配るリンク」を配り直す（README 参照）
     const USE_ROSTER = false;
@@ -2313,6 +2330,7 @@
       else prompt('このリンクをコピーしてください', link);
     }
     // 配布リンク（#u=…）や、サークル出欠のボタン（#n=名前）で開いたら、設定を保存して、アドレスから消す
+    let adminAsked = false;   // #admin で開かれた
     let pendingDo = null;   // リンク（QR）で開いたときの指示：部室にいる／向かう／出た
     (function importApiFromLink() {
       const h = new URLSearchParams(location.hash.replace(/^#/, ''));
@@ -2326,7 +2344,7 @@
         if (st && Date.now() - st.at < 10 * 60000 && !pendingDo && ['bushitsu-in', 'bushitsu-out', 'bushitsu-toggle'].includes(st.a)) pendingDo = st.a;
       }
       if (['bushitsu-in', 'bushitsu-out', 'bushitsu-toggle'].includes(h.get('do'))) { pendingDo = h.get('do'); used = true; }
-      if (h.has('admin')) { save('admin', true); used = true; }   // 管理者（幹事）の端末だけ、設定を出す
+      if (h.has('admin')) { adminAsked = true; used = true; }   // 管理者（幹事）の端末だけ、設定を出す。合言葉を確かめてから（URLを知っているだけでは出ない）
       // 名前：未登録の端末はそのまま登録。別の名前で登録済みなら、勝手に変えずに確認する
       const n = (h.get('n') || '').replace(/\s+/g, ' ').trim().slice(0, 30);
       if (n) {
@@ -2342,24 +2360,68 @@
     // 起動
     // ============================================================
     // 設定（出欠アプリのURLなど）は、管理者の端末にだけ出す。メンバーの画面には歯車もURL欄も出ない
-    const isAdmin = load('admin', false) === true;
-    $('settingsBtn').style.display = isAdmin ? '' : 'none';
-    $('buSettings').style.display = isAdmin ? '' : 'none';
-    $('qrDetails').hidden = !isAdmin;
-    if (isAdmin) {
-      const base = location.href.split('#')[0].split('?')[0];
-      [['部室（読むと、入る。部室にいる人が読むと、出る）', 'bushitsu-toggle']].forEach(([label, act]) => {
-        const url = base + '#do=' + act;
-        const wrap = document.createElement('div'); wrap.style.cssText = 'margin-top:12px';
-        const t = document.createElement('div'); t.className = 'muted'; t.textContent = label;
-        const q = document.createElement('div'); q.style.cssText = 'background:#fff;padding:8px;display:inline-block;margin:6px 0';
-        try { new QRCode(q, { text: url, width: 168, height: 168, correctLevel: QRCode.CorrectLevel.M }); } catch (e) { q.textContent = 'QRを作れませんでした'; }
-        const a = document.createElement('div'); a.className = 'muted'; a.style.cssText = 'word-break:break-all;user-select:all'; a.textContent = url;
-        wrap.append(t, q, a);
-        $('qrBox').appendChild(wrap);
-      });
+    // 管理者の確認：合言葉から計算した鍵を端末に覚えて、起動のたびに「確かめの値」と合うか見る（鍵を知らなければ、設定は出ない）
+    remove('admin');   // 以前の簡易版（URLだけで出す印）は、もう使わない
+    const toHex = buf => [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, '0')).join('');
+    const sha256Hex = async str => toHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)));
+    async function adminKeyOf(pass, salt) {
+      const enc = new TextEncoder(), base = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveBits']);
+      return toHex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(salt), iterations: 300000 }, base, 256));
     }
-    $('setupCard').hidden = !isAdmin;
+    const adminValid = async key => !!(ADMIN_CHECK && key) && (await sha256Hex(String(key))) === ADMIN_CHECK;
+    let isAdmin = false, qrMade = false;
+    async function applyAdmin() {
+      try { isAdmin = await adminValid(load('adminKey', '')); } catch (e) { isAdmin = false; }
+      $('settingsBtn').style.display = isAdmin ? '' : 'none';
+      $('buSettings').style.display = isAdmin ? '' : 'none';
+      $('qrDetails').hidden = !isAdmin;
+      if (isAdmin && !qrMade) {
+        qrMade = true;
+        const base = location.href.split('#')[0].split('?')[0];
+        [['部室（読むと、入る。部室にいる人が読むと、出る）', 'bushitsu-toggle']].forEach(([label, act]) => {
+          const url = base + '#do=' + act;
+          const wrap = document.createElement('div'); wrap.style.cssText = 'margin-top:12px';
+          const t = document.createElement('div'); t.className = 'muted'; t.textContent = label;
+          const q = document.createElement('div'); q.style.cssText = 'background:#fff;padding:8px;display:inline-block;margin:6px 0';
+          try { new QRCode(q, { text: url, width: 168, height: 168, correctLevel: QRCode.CorrectLevel.M }); } catch (e) { q.textContent = 'QRを作れませんでした'; }
+          const a = document.createElement('div'); a.className = 'muted'; a.style.cssText = 'word-break:break-all;user-select:all'; a.textContent = url;
+          wrap.append(t, q, a);
+          $('qrBox').appendChild(wrap);
+        });
+      }
+      $('setupCard').hidden = !isAdmin;
+    }
+    $('settingsBtn').style.display = $('buSettings').style.display = 'none'; $('qrDetails').hidden = true; $('setupCard').hidden = true;
+    // 合言葉の画面（#admin で開いたとき）。決めていなければ「決める」、決めてあれば「入れる」
+    function askAdmin() {
+      const setup = !ADMIN_CHECK, box = $('adminBox'), msg = $('adminMsg');
+      $('adminTitle').textContent = setup ? '管理者の合言葉を決める' : '管理者の合言葉';
+      $('adminPass').value = $('adminPass2').value = ''; $('adminPass2').hidden = !setup; $('adminOut').hidden = true; msg.textContent = setup ? '長く、他では使っていない言葉にしてください（12文字以上）。決めたあと、画面に出る2行を、そのまま貼ってください。' : '';
+      $('adminOk').hidden = false; box.hidden = false; $('adminPass').focus();
+      let busyA = false;
+      $('adminOk').onclick = async () => {
+        if (busyA) return; busyA = true; msg.textContent = '確かめています…';
+        try {
+          const pass = $('adminPass').value;
+          if (setup) {
+            if (pass.length < 12) { msg.textContent = '12文字以上にしてください'; return; }
+            if (pass !== $('adminPass2').value) { msg.textContent = '2回の入力が合いません'; return; }
+            const salt = toHex(crypto.getRandomValues(new Uint8Array(16))), key = await adminKeyOf(pass, salt);
+            $('adminOut').value = "const ADMIN_SALT = '" + salt + "';\nconst ADMIN_CHECK = '" + (await sha256Hex(key)) + "';";
+            $('adminOut').hidden = false; $('adminOk').hidden = true; $('adminPass').value = $('adminPass2').value = '';
+            msg.textContent = '上の2行をコピーして、貼ってください（合言葉そのものは入っていません）。貼ったあと、公開が終わるまで待って、もう一度 #admin を開いてください。';
+          } else {
+            const key = await adminKeyOf(pass, ADMIN_SALT);
+            if (!(await adminValid(key))) { await new Promise(r => setTimeout(r, 1200)); msg.textContent = '合言葉が違います'; return; }
+            save('adminKey', key); box.hidden = true; await applyAdmin();
+          }
+        } catch (e) { msg.textContent = 'うまくいきませんでした：' + (e.message || e); }
+        finally { busyA = false; }
+      };
+      $('adminPass').onkeydown = e => { if (e.key === 'Enter' && !setup) $('adminOk').click(); };
+      $('adminCancel').onclick = () => { box.hidden = true; };
+    }
+    applyAdmin().then(() => { if (adminAsked && !isAdmin) askAdmin(); });
     $('modeBadge').textContent = hasFirebase ? '' : 'お試し';
     $('demoNotice').hidden = hasFirebase;
     $('openBtn').onclick = () => { autoOpen = true; openToday(); };
