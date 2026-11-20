@@ -726,12 +726,13 @@
           <div class="set-row child"><span>新しいイベントが作られたとき</span><button class="sw" id="swEv" role="switch" aria-checked="false" aria-label="新しいイベントが作られたとき"></button></div>
           <div class="set-row child"><span>部室に人が来たとき（1人目・計3人）</span><button class="sw" id="swBu" role="switch" aria-checked="false" aria-label="部室に人が来たとき"></button></div>
           <div class="set-row child"><span>ロタに人が着いたとき（1人目・計5人・計10人）</span><button class="sw" id="swRota" role="switch" aria-checked="false" aria-label="ロタに人が着いたとき"></button></div>
+          <div class="set-row child"><span>自分のイベントに「行きたい」が来たとき</span><button class="sw" id="swHeart" role="switch" aria-checked="false" aria-label="自分のイベントに行きたいが来たとき"></button></div>
+          <div class="set-row child"><span>自分のイベントが満員のとき</span><button class="sw" id="swFull" role="switch" aria-checked="false" aria-label="自分のイベントが満員のとき"></button></div>
         </div>
         <p class="set-head">通知を送る</p>
         <div class="set-group">
           <div class="set-row parent"><span>通知を送る</span><button class="sw" id="swSend" role="switch" aria-checked="false" aria-label="通知を送る"></button></div>
-          <div class="set-row child"><span>自分のイベントに「行きたい」が来たとき</span><button class="sw" id="swHeart" role="switch" aria-checked="false" aria-label="自分のイベントに行きたいが来たとき"></button></div>
-          <div class="set-row child"><span>自分のイベントが満員のとき</span><button class="sw" id="swFull" role="switch" aria-checked="false" aria-label="自分のイベントが満員のとき"></button></div>
+          <div class="set-row child"><span>自分が新しいイベントを作ったとき</span><button class="sw" id="swMk" role="switch" aria-checked="false" aria-label="自分が新しいイベントを作ったとき"></button></div>
         </div>
         <p class="set-foot" id="pushMsg"></p>
         </div>
@@ -1672,10 +1673,10 @@
     const isStandalone = () => navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
     const pushCapable = () => hasFirebase && !!VAPID_KEY && 'serviceWorker' in navigator && 'Notification' in window && 'PushManager' in window && typeof firebase.messaging === 'function';
     // 初期値：親はオフ（押した最初の1回で、端末の許可が出る）。子は、イベント作成・満員がオン、そのほかはオフ
-    const PUSH_DEF = { recv: false, send: false, ev: true, full: true, heart: false, bu: false, rota: false };
+    const PUSH_DEF = { recv: false, send: false, ev: true, full: true, heart: false, bu: false, rota: false, mk: true };
     const PUSH_KEYS = Object.keys(PUSH_DEF);
-    const PUSH_SW = { recv: 'swRecv', send: 'swSend', ev: 'swEv', bu: 'swBu', rota: 'swRota', heart: 'swHeart', full: 'swFull' };
-    const PUSH_PARENT = { ev: 'recv', bu: 'recv', rota: 'recv', heart: 'send', full: 'send' };
+    const PUSH_SW = { recv: 'swRecv', send: 'swSend', ev: 'swEv', bu: 'swBu', rota: 'swRota', heart: 'swHeart', full: 'swFull', mk: 'swMk' };
+    const PUSH_PARENT = { ev: 'recv', bu: 'recv', rota: 'recv', heart: 'recv', full: 'recv', mk: 'send' };
     const pushState = () => ({ ...PUSH_DEF, ...(load('push', null) || {}) });
     const pushPrefs = p => Object.fromEntries(PUSH_KEYS.map(k => [k, !!p[k]]));
     async function tokenKey(token) {
@@ -2447,7 +2448,7 @@
     geoStart();
     $('swRecv').onclick = () => toggleParent('recv');
     $('swSend').onclick = () => toggleParent('send');
-    ['ev', 'bu', 'rota', 'heart', 'full'].forEach(k => { $(PUSH_SW[k]).onclick = () => togglePref(k); });
+    ['ev', 'bu', 'rota', 'heart', 'full', 'mk'].forEach(k => { $(PUSH_SW[k]).onclick = () => togglePref(k); });
     // アップデートのお知らせ：×はその日だけ閉じる（日を跨ぐと、また出る）。「二度と表示しない」は、ずっと出さない。公開から3週間たつと、ぜんぶ出さない
     const NOTICE_UNTIL = new Date('2026-12-11T00:00:00+09:00').getTime();
     function renderNotice() {
