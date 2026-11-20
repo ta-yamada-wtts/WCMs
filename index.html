@@ -1378,6 +1378,7 @@
       if (!/^\d{1,3}$/.test(gen)) { $('homeErr').textContent = '代は数字で入力してください（例：65）'; return; }
       myName = name; save('name', myName); save('gen', gen);
       setTimeout(() => { try { renderNotice(); } catch (e) {} }, 600);   // 名前を入れたあとに、お知らせを出す
+      try { refreshPush(); } catch (e) {}   // 通知の宛先に結びつけた名前も、変える
       const id = pending.id;
       hideNamePicker();
       enterMode(id);
@@ -1724,7 +1725,7 @@
       if (perm !== 'granted') { if (perm === 'denied') toast('通知が許可されませんでした。もう一度使うには、端末の設定で許可してください', true); return false; }
       const token = await pushToken(), k = await tokenKey(token);
       await backend.setPush(gatherId, k, { token, key: myKey(), t: Date.now(), ...pushPrefs(p) });
-      p.k = k; p.g = gatherId; p.t = Date.now(); save('push', p);
+      p.k = k; p.g = gatherId; p.t = Date.now(); p.nk = myKey(); save('push', p);
       return true;
     }
     async function pushUnregister(p) {   // 親が両方オフになったら、宛先も消す。子の選びは、端末に残す
@@ -1759,11 +1760,11 @@
       try {
         const p = pushState();
         if (!p.k || !pushCapable() || Notification.permission !== 'granted' || !gatherId) return;
-        if (p.g === gatherId && Date.now() - (p.t || 0) < 86400000) return;
+        if (p.g === gatherId && p.nk === myKey() && Date.now() - (p.t || 0) < 86400000) return;   // 名前を変えたときも、書き直す（宛先に、持ち主の名前を結びつけているため）
         const token = await pushToken(), k = await tokenKey(token);
         if (p.k !== k || p.g !== gatherId) await backend.setPush(p.g, p.k, null).catch(() => {});
         await backend.setPush(gatherId, k, { token, key: myKey(), t: Date.now(), ...pushPrefs(p) });
-        p.k = k; p.g = gatherId; p.t = Date.now(); save('push', p);
+        p.k = k; p.g = gatherId; p.t = Date.now(); p.nk = myKey(); save('push', p);
       } catch (e) {}
     }
 
