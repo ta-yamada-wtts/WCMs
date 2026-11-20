@@ -1197,14 +1197,14 @@
       if (!json.ok) throw new Error('出欠アプリから名簿を取り込めませんでした');
     }
     // 書き込みのすぐあとに、出欠アプリのサーバーへ「通知の見張りを今まわして」と合図する（待たない。失敗しても、5分ごとの見張りが拾う）。
-    // 合図は、まとめて1回（1.5秒の間に何度あっても1回）。結果は見ない
+    // 合図は、まとめて1回（0.4秒の間に何度あっても1回）。結果は見ない
     let kickTimer = null;
     function pushKick() {
       if (!(hasFirebase && hasApi() && joinKey) || kickTimer) return;
       kickTimer = setTimeout(() => {
         kickTimer = null;
         try { fetch(api.url + (api.url.includes('?') ? '&' : '?') + 'api=pushKick&s=' + encodeURIComponent(joinKey), { keepalive: true }).catch(() => {}); } catch (e) {}
-      }, 1500);
+      }, 400);
     }
     // 名簿が古ければ、裏で取り込み直す（画面は待たせない）。使わない設定のときは何もしない
     function maybeSyncRoster(room) {
@@ -2526,6 +2526,7 @@
         try { startTab = +sessionStorage.getItem(STORE_PREFIX + 'tab') || 0; } catch (e) {}
         if (startTab !== 2 && !(startTab === 4 && SHOW_SETTINGS) && !(SHOW_SHOPS && (startTab === 1 || startTab === 3))) startTab = 0;
         $('buDate').textContent = $('roomDate').textContent = today.label; $('remain').textContent = '読み込み中…';
+        [1, 2, 3, 4].forEach(i => { $('pane' + i).hidden = i !== startTab; });   // 先に見せるタブだけを残す（お店を選ぶ画面が、一瞬のぞくのを防ぐ）
         show(startTab ? 'room' : 'bushitsu');
       }
       try { uid = await backend.init(); }
